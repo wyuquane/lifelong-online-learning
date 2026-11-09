@@ -1,0 +1,15 @@
+paths:
+  data_dir: data
+  results_dir: results
+
+wandb:
+  project: AKLO-lifelong-online-learning
+  entity: AI-Athena-Lab
+  mode: online
+
+seeds: [0]
+
+runtime:
+  log_every: 10
+  smoke_tasks: 2
+  smoke_samples: 5

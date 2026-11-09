@@ -1,0 +1,7 @@
+name: otb
+supported_task_types: [classification]
+classification:
+  loss: hinge
+  eta: 0.5
+  lambda: 0.001
+n_learners: 10

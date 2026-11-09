@@ -1,0 +1,6 @@
+name: syn2
+kind: synthetic
+task_type: classification
+n_tasks: 200
+n_samples: 100
+test_fraction: 0.0

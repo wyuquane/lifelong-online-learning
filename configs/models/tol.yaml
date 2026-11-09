@@ -1,0 +1,9 @@
+name: tol
+classification:
+  loss: hinge
+  eta: 1.0
+  lambda: 0.001
+regression:
+  loss: absolute
+  eta: 0.05
+  lambda: 0.25

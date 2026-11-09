@@ -216,5 +216,12 @@ marimo/_static/
 marimo/_lsp/
 __marimo__/
 
+# Project-specific
+results/
+wandb/
+data/generated/
+*.egg-info/
+.venv/
+
 # Streamlit
 .streamlit/secrets.toml

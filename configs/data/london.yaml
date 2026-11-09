@@ -1,0 +1,5 @@
+name: london
+kind: london
+task_type: regression
+path: data/london-school/ILEA567.DAT
+test_fraction: 0.0

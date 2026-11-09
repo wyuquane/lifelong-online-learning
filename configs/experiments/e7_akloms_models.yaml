@@ -1,0 +1,11 @@
+experiment: e7_akloms_models
+dataset: syn1
+method: akloms
+seeds: [0]
+test_fraction: 0.0
+evaluate_forgetting: false
+task_counts: [50, 100, 150, 200, 400]
+tau_values: [0, 5, 10, 15, 20, 25]
+visualization_tau: [0.01, 0.05, 0.1, 1.0]
+ratio_tau_values: [0, 0.001, 0.01, 0.05, 0.1, 0.5, 1, 5, 10, 25]
+log_selected_models: true

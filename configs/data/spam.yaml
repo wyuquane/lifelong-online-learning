@@ -1,0 +1,7 @@
+name: spam
+kind: spam
+task_type: classification
+path: data/spam-detection.npz
+n_samples: 200
+n_users: 15
+test_fraction: 0.0

@@ -1,0 +1,6 @@
+name: syn4
+kind: synthetic
+task_type: regression
+n_tasks: 200
+n_samples: 100
+test_fraction: 0.0

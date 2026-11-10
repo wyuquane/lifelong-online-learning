@@ -62,7 +62,7 @@ Total: `3 + 1 + 4 + 11 + 3 + 3 + 2 + 1 = 28`.
 | Classification prediction | `sign(w^T x)` | `sign(w^T x)`, with `sign(0)=+1` | The paper does not define the tie; this convention is documented in the code and tests. |
 | Meta loss, classification | Square loss `(y - y_hat)^2` | **Hinge loss** | Section 6 says square loss, but Algorithm 2, the bounded-loss theory, and the reported numbers point to a classification loss. Squared raw predictions gave about 25% ACE on `syn1`; hinge gave about 12%, close to the paper's 10.10%. The choice is configurable via `meta_loss`. |
 | Meta loss, regression | Square loss | Squared loss | Matches the paper. |
-| AKLOMS `tau` | Different `tau` per task/dataset | One `tau` per dataset, swept in E6/E7/E8 | The paper says different `tau` values are used for different scenarios but does not give a rule. |
+| AKLOMS `tau` | Different `tau` per task/dataset | One `tau` per dataset, swept in E6/E7/E8 | The paper says different `tau` values are used for different scenarios but does not give a rule. The **absolute** `tau` values are not comparable across implementations: the cover test uses raw prediction differences, whose scale depends on the weight norm. In our runs the cover stays above 90% until `tau ~ 25` and only falls to 45.5% at `tau=100`; the paper's Figure 7 reports much smaller model ratios but does not give the `tau` values behind panel (b). We therefore compare trends, not the exact `tau` axis. |
 | AKLOMS cover | `2*tau` packing, random initial member | One random member at task start; add previous models at least `2*tau` away from the cover | Follows Algorithm 3. The current task's model is appended to the knowledge base after the task, not used in the cover during that task. |
 | AKLOMS with `tau=0` | Stated to recover AKLO | Full knowledge base + AKLO's `log(t-1)` epsilon | Algorithm 3's `|Lambda_t|` formula would not reproduce Algorithm 2's epsilon, so the `tau=0` special case follows the paper's stated equivalence. |
 | Knowledge base contents | Previous task predictors | Final predictor of each previous task | Matches the algorithm. |
@@ -93,7 +93,16 @@ and in the model configs.
 | E1/E2/E4-E8 evaluation | Online ACE | Online ACE, `test_fraction=0` | Matches the paper. |
 | E3 evaluation | Table 2, "test samples from previous tasks" | Held-out 20% per task plus several diagnostics | The paper does not specify the split or the evaluation instant. See below. |
 | Global shuffle | Random task and example order per repetition | Deterministic shuffle per seed; same for every method | Necessary for a controlled comparison. |
-| Runtime | Wall-clock scaling | `train_seconds` around the predict/update loop only; one measurement | Excludes data loading and logging so that W&B does not contaminate the measurement. |
+| Runtime | Wall-clock scaling | `train_seconds` around the predict/update loop only; one measurement | Excludes data loading and logging so that W&B does not contaminate the measurement. The AKLOMS cover check uses an exact nearest-cover binary search, so distance comparison stays negligible next to prediction, as the paper assumes. |
+
+The first E8 run used a brute-force `|knowledge base| x |cover|` distance
+matrix. At small `tau` the cover approaches the full knowledge base, so cover
+maintenance dominated the runtime and the paper's negative `tau`/runtime trend
+disappeared. The committed implementation replaces it with an exact
+nearest-cover binary search (`src/aklo/models/akloms.py`); a unit test compares
+it with the pairwise check, and spot checks on E6/E7 reproduce the same ACE and
+cover ratio. E8 was rerun after this change. Wall-clock timing on a shared
+laptop is still noisy, so the E8 numbers remain indicative.
 
 ### E3: the forgetting ambiguity
 

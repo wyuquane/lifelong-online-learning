@@ -1,9 +1,11 @@
 # Theory checks
 
-This document is the plan for empirically stress-testing the paper's
-theoretical claims. The reproduction code is intentionally structured so that
-the same stream and the same learners can be instrumented without changing the
-experiments.
+This document describes how the reproduction empirically stress-tests the
+paper's theoretical claims. The reproduction code is intentionally structured
+so that the same stream and the same learners can be instrumented without
+changing the experiments. **Status: implemented and run.** The results are
+summarized in [`reports/theory/README.md`](../reports/theory/README.md) and in
+the per-run Markdown/JSON files under `reports/theory/`.
 
 The three results to check are Theorem 1, Corollary 1.1, and Corollary 1.2.
 The assumptions are as important as the inequalities themselves; several of
@@ -155,20 +157,41 @@ The empirical implementation does not satisfy all assumptions literally:
    implementation's cover uses prediction differences, not loss differences;
    for Lipschitz losses these are related, but not identical.
 
-## 5. Planned implementation
+## 5. Implementation
 
-The planned module is `src/aklo/theory.py` with a companion
-`scripts/check_theory.py`. It will:
+The module is `src/aklo/theory.py` with a companion
+`scripts/check_theory.py` and a reproducible matrix in
+`scripts/run_theory_checks.ps1`. It:
 
-* run one AKLO/AKLOMS stream and record per-sample predictions, alpha, cover
-  sizes, and weight norms;
-* compute empirical `CE_t` and the Theorem 1 components;
-* solve the two-dimensional `w*` problem for `syn1`/`syn3`;
-* evaluate Corollary 1.1's condition and, when it holds, its bound;
-* compute the cover/packing diagnostic for Corollary 1.2;
-* write a Markdown/JSON report under `reports/theory/`.
+* runs one AKLO/AKLOMS stream and records per-sample predictions, `alpha`,
+  cover sizes, and weight norms;
+* computes empirical `CE_t` and the Theorem 1 components;
+* solves the two-dimensional `w*` problem for `syn1`/`syn3`;
+* evaluates Corollary 1.1's condition and, when it holds, its bound;
+* computes the cover/packing diagnostic for Corollary 1.2;
+* writes a Markdown/JSON report under `reports/theory/`.
 
 The module is deliberately separate from the experiment runner so that the
 main reproduction remains comparable to the paper's Section 6 protocol. A
-theory check that changes `eta` or the loss should be reported as a separate
-sensitivity study, not mixed into Table 1.
+theory check that changes `eta` or the loss is reported as a separate
+sensitivity study, not mixed into Table 1. The checks are diagnostics, not
+benchmark runs: they are not logged to W&B.
+
+### 5.1 Results at a glance
+
+* **Theorem 1.** The displayed radical is inconsistent with the proof and with
+  both stated special cases. The `bound_proof` reading covers 100% of `syn1`
+  tasks and 93.9% of `syn3` tasks; the displayed reading covers 0% and 10.2%.
+  With `delta_alpha=0.0001` on `syn1`, the proof bound covers only 36.7%,
+  because the constant-`eta` Section 6 update violates the theorem's schedule.
+* **Corollary 1.1.** The small-interaction condition `m_t <= i_0` is not
+  reachable at `m_t=100` in any of the ten runs. For classification,
+  `K R / sqrt(2 log(t-1))` forces `N/(1+N) ~ 0.99`, so `alpha` would have to
+  stay above 0.99 for all 100 steps. On `syn3`, `i_0` reaches 74, so the
+  corollary may become feasible at a smaller `m_t`.
+* **Corollary 1.2.** The cover is nearly the whole knowledge base for
+  `tau <= 1` and still 45/49 models at `tau=10`. The cover bound is 5.6–10.8×
+  the empirical `CE_t`, and is looser than Theorem 1 even at `tau=0`. The
+  implementation's cover is a valid prediction-space `2*tau` packing; the
+  theory is stated on loss sequences, which creates a small mismatch at large
+  `tau`.

@@ -88,6 +88,14 @@ Open:
 https://forge.coreweave.com/wandb/AI-Athena-Lab/AKLO-lifelong-online-learning
 ```
 
+The group view for one experiment is:
+
+```
+https://forge.coreweave.com/wandb/AI-Athena-Lab/AKLO-lifelong-online-learning/groups/<experiment>
+```
+
+for example `.../groups/e1_main`.
+
 The W&B server used in this environment is `forge.coreweave.com`; the project
 and entity names are the ones requested. Filter by `group` (experiment name)
 or by the tags. The run URL is stored in each local JSON as

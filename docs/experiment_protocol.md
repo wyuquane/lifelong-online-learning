@@ -216,6 +216,11 @@ loading, model construction, forgetting evaluation, JSON serialization, and
 W&B logging are excluded. `total_seconds` includes all of the run after data
 loading. E8 reports `train_seconds`.
 
+AKLOMS updates its cover inside the timed loop. The cover check uses an exact
+nearest-cover binary search rather than a `|knowledge base| x |cover|` distance
+matrix; this keeps the distance comparison negligible, as assumed by the
+paper, and preserves the selected models exactly.
+
 ## 9. Smoke mode
 
 `--smoke` truncates every stream to `runtime.smoke_tasks` tasks and

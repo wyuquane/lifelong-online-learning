@@ -29,6 +29,35 @@ from .linear import LinearSnapshot
 from .meta import MetaHypothesis, _predict_rows
 
 
+def _eligible_additions(
+    predictions: np.ndarray,
+    cover_indices: list[int],
+    tau: float,
+) -> np.ndarray:
+    """Knowledge-base indices at distance ``>= 2*tau`` from every cover model.
+
+    This is the exact vectorized equivalent of the pairwise check.  The cover
+    is a ``2*tau`` packing, so its predictions are separated; the nearest cover
+    prediction can therefore be found with a binary search instead of building
+    the full ``|knowledge base| x |cover|`` distance matrix.  The latter is
+    quadratic and dominates the runtime at small ``tau``, whereas the paper
+    treats distance comparison as negligible next to prediction.
+    """
+    if not cover_indices:
+        return np.zeros(0, dtype=np.int64)
+    cover_predictions = np.sort(predictions[cover_indices])
+    positions = np.searchsorted(cover_predictions, predictions, side="left")
+    right = np.clip(positions, 0, cover_predictions.size - 1)
+    left = np.clip(positions - 1, 0, cover_predictions.size - 1)
+    distance = np.minimum(
+        np.abs(predictions - cover_predictions[left]),
+        np.abs(predictions - cover_predictions[right]),
+    )
+    eligible = distance >= 2.0 * tau
+    eligible[cover_indices] = False
+    return np.flatnonzero(eligible)
+
+
 class AKLOMS(AKLO):
     """Algorithm 3: keep a 2*tau cover of the previous models."""
 
@@ -111,15 +140,10 @@ class AKLOMS(AKLO):
             raise RuntimeError("start_task must be called before update")
 
         if self.tau > 0.0 and self.knowledge_base and self.cover_indices:
-            matrix = self._matrix()
-            predictions = _predict_rows(matrix, x)
-            cover_predictions = predictions[self.cover_indices]
-            differences = np.abs(
-                predictions[:, None] - cover_predictions[None, :]
+            predictions = _predict_rows(self._matrix(), x)
+            additions = _eligible_additions(
+                predictions, self.cover_indices, self.tau
             )
-            eligible = np.all(differences >= 2.0 * self.tau, axis=1)
-            eligible[self.cover_indices] = False
-            additions = np.flatnonzero(eligible)
             if additions.size:
                 self.cover_indices.extend(int(index) for index in additions)
                 self._rebuild_meta()

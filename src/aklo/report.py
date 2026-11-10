@@ -464,6 +464,9 @@ def _sensitivity_table(
         results,
         lambda result: result["config"].get("model_overrides", {}).get(parameter),
     )
+    # Runs that do not override this parameter belong to the sweeps of the
+    # other parameters and must not be pooled into a spurious "None" row.
+    groups.pop(None, None)
     headers = [parameter, "ACE (%)", "W&B"]
     rows = []
     for value in sorted(groups, key=lambda item: (item is None, item)):
@@ -475,6 +478,8 @@ def _sensitivity_table(
                 _link("run", _first(group)),
             ]
         )
+    if not rows:
+        return "_No results for this parameter._"
     return _markdown_table(headers, rows)
 
 
@@ -1145,6 +1150,25 @@ def build_report(
         "## E8: runtime scaling (paper Figure 8)",
         "",
         table_e8(load_results(results_dir, "e8_runtime")),
+        "",
+        "`train_seconds` covers only the per-sample predict/update loop; data",
+        "loading and W&B calls are excluded. The runs still share one Windows",
+        "machine, and background W&B uploads can perturb wall-clock timing, so",
+        "the absolute seconds are indicative and the scaling shape is the",
+        "reliable signal. The small-task-count cells are the noisiest; the",
+        "trend is clearest from 400 tasks upward.",
+        "",
+        "At the tested `tau` values the AKLOMS cover stays close to the full",
+        "knowledge base (see E6/E7), so the AKLOMS table mainly measures the",
+        "cost of a near-full cover. The paper's negative `tau`/runtime trend",
+        "requires much larger `tau` in this implementation; `tau=0` is the",
+        "AKLO-equivalent special case.",
+        "",
+        "## Theory checks",
+        "",
+        "The empirical checks of Theorem 1, Corollary 1.1, and Corollary 1.2 are",
+        "diagnostics, not benchmark runs, and are not logged to W&B. The summary",
+        "and per-run reports are in [theory/README.md](theory/README.md).",
         "",
     ]
 

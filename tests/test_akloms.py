@@ -7,6 +7,7 @@ import numpy as np
 from aklo.data.synthetic import make_synthetic
 from aklo.data.stream import prepare_stream
 from aklo.models import build_model
+from aklo.models.akloms import _eligible_additions
 
 
 def _config(**overrides):
@@ -100,3 +101,24 @@ def test_current_model_is_added_after_task_only() -> None:
     assert len(model.knowledge_base) == 0
     model.end_task()
     assert len(model.knowledge_base) == 1
+
+
+def test_eligible_additions_matches_pairwise_check() -> None:
+    rng = np.random.default_rng(0)
+    predictions = rng.normal(size=50)
+    cover = sorted(rng.choice(50, size=10, replace=False).tolist())
+    for tau in (0.001, 0.1, 1.0, 10.0):
+        brute = np.all(
+            np.abs(predictions[:, None] - predictions[cover][None, :])
+            >= 2.0 * tau,
+            axis=1,
+        )
+        brute[cover] = False
+        got = _eligible_additions(predictions, cover, tau)
+        assert np.array_equal(got, np.flatnonzero(brute))
+
+
+def test_eligible_additions_boundary_is_inclusive() -> None:
+    predictions = np.array([0.0, 2.0, 4.0])
+    # Distance exactly 2*tau still counts as "at least 2*tau".
+    assert _eligible_additions(predictions, [0], 1.0).tolist() == [1, 2]

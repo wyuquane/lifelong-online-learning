@@ -1,0 +1,7 @@
+experiment: e2_small_m
+dataset: syn1
+methods: [itol, tol, unif_sum, tranol, otb, aklo]
+seeds: [0]
+n_samples_values: [10, 20, 40, 80, 160, 200, 300]
+test_fraction: 0.0
+evaluate_forgetting: false

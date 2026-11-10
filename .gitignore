@@ -216,5 +216,23 @@ marimo/_static/
 marimo/_lsp/
 __marimo__/
 
+# Project-specific
+results/
+wandb/
+data/generated/
+*.egg-info/
+.venv/
+
+# Local datasets (see data/README.md for download instructions)
+data/*.csv
+data/*.npz
+data/london-school/
+
+# Local copy of the paper and extracted page images
+/3563947 (1).pdf
+/paper_text.txt
+/page*.png
+/formula_*.png
+
 # Streamlit
 .streamlit/secrets.toml

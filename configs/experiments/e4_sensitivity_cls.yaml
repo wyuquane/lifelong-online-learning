@@ -1,0 +1,10 @@
+experiment: e4_sensitivity_cls
+dataset: syn1
+method: aklo
+seeds: [0]
+test_fraction: 0.0
+evaluate_forgetting: false
+sweeps:
+  eta: [10, 1, 0.01, 0.001, 0.0001]
+  lambda: [0, 0.0001, 0.001, 0.01, 0.05, 0.1]
+  delta_alpha: [0, 0.001, 0.01, 0.1, 1]

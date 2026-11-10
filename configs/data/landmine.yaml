@@ -1,0 +1,6 @@
+name: landmine
+kind: landmine
+task_type: classification
+path: data/landmine-detection.csv
+n_samples: 150
+test_fraction: 0.0

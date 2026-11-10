@@ -61,6 +61,52 @@ def test_run_stream_forgetting_diagnostics(root) -> None:
     assert summary["final_train_ace_task_mean"] is not None
 
 
+def test_run_stream_training_sample_probe(small_syn1, root) -> None:
+    config = load_yaml(root / "configs" / "models" / "aklo.yaml")
+    metrics, _, summary, _, _ = run_stream(
+        small_syn1,
+        "aklo",
+        config,
+        seed=0,
+        probe_fraction=0.2,
+        log_every=0,
+    )
+    assert all(metrics_item.probe is not None for metrics_item in metrics)
+    assert summary["probe_n_tasks"] == len(small_syn1.tasks)
+    assert summary["probe_n_samples"] == sum(
+        metrics_item.probe["n_samples"] for metrics_item in metrics
+    )
+    assert 0.0 <= summary["probe_ace_task_mean"] <= 1.0
+    assert 0.0 <= summary["probe_ace_pooled"] <= 1.0
+
+
+def test_task_predictor_is_available_for_all_methods(small_syn1, root) -> None:
+    from aklo.models import build_model
+
+    for method in ("itol", "tol", "unif_sum", "tranol", "otb", "aklo"):
+        config = load_yaml(root / "configs" / "models" / f"{method}.yaml")
+        model = build_model(
+            method,
+            small_syn1.n_features,
+            small_syn1.task_type,
+            config,
+            seed=0,
+        )
+        for task_index, task in enumerate(small_syn1.tasks):
+            model.start_task(
+                task_index,
+                task.n_train,
+                task_id=task.task_id,
+                category=task.category,
+            )
+            for index in range(task.n_train):
+                row = task.X_train[index]
+                model.update(row, float(task.y_train[index]))
+            model.end_task()
+            prediction = model.task_predictor().predict(task.X_train[0])
+            assert np.isfinite(prediction)
+
+
 def test_make_smoke_stream() -> None:
     from aklo.data.synthetic import make_synthetic
 

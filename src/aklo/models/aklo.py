@@ -155,3 +155,9 @@ class AKLO:
 
     def selected_models(self) -> list[LinearSnapshot]:
         return list(self.snapshots)
+
+    def task_predictor(self) -> LinearSnapshot:
+        """Task-specific predictor ``f_t`` saved at the end of task ``t``."""
+        if not self.snapshots:
+            raise RuntimeError("No task predictor is available")
+        return self.snapshots[-1]

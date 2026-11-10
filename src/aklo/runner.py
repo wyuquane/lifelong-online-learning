@@ -52,6 +52,7 @@ class RunSpec:
     model_overrides: dict[str, Any] = field(default_factory=dict)
     test_fraction: float = 0.0
     evaluate_forgetting: bool = False
+    probe_fraction: float = 0.0
     log_selected_models: bool = False
     notes: dict[str, Any] = field(default_factory=dict)
 
@@ -67,6 +68,7 @@ class TaskMetrics:
     time_seconds: float
     state: dict[str, Any]
     forgetting: dict[str, float] | None = None
+    probe: dict[str, float] | None = None
 
 
 @dataclass
@@ -213,6 +215,7 @@ def run_stream(
     seed: int,
     model_overrides: dict[str, Any] | None = None,
     evaluate_forgetting: bool = False,
+    probe_fraction: float = 0.0,
     log_every: int = 10,
     logger: WandbLogger | None = None,
     log_selected_models: bool = False,
@@ -240,6 +243,27 @@ def run_stream(
     global_sample = 0
     train_seconds = 0.0
     run_start = time.perf_counter()
+
+    # E3 training-sample probe.  The indices are drawn once, independently of
+    # the method, so every method sees exactly the same held-in sample.  The
+    # probe is evaluated immediately after each task's predictor is frozen;
+    # that is equivalent to evaluating the saved task predictors after the
+    # full run and avoids storing 200 copies of large models.
+    probe_indices: list[np.ndarray] = []
+    if probe_fraction > 0.0:
+        probe_rng = np.random.default_rng(seed + 7919)
+        for task in stream.tasks:
+            n_probe = int(round(task.n_train * float(probe_fraction)))
+            n_probe = min(task.n_train, max(1, n_probe))
+            probe_indices.append(
+                np.sort(
+                    probe_rng.choice(task.n_train, size=n_probe, replace=False)
+                )
+            )
+    else:
+        probe_indices = [
+            np.zeros(0, dtype=np.int64) for _ in stream.tasks
+        ]
 
     for task_index, task in enumerate(stream.tasks):
         model.start_task(
@@ -286,6 +310,22 @@ def run_stream(
                 include_current=task.task_id,
             )
 
+        probe = None
+        if probe_indices[task_index].size:
+            predictor = model.task_predictor()
+            probe_tracker = ACETracker(stream.task_type)
+            for probe_index in probe_indices[task_index]:
+                row = int(probe_index)
+                probe_tracker.update(
+                    float(task.y_train[row]),
+                    predictor.predict(_row(task.X_train, row)),
+                )
+            probe = {
+                "ace": float(probe_tracker.value),
+                "total_error": float(probe_tracker.total),
+                "n_samples": int(probe_tracker.n),
+            }
+
         metrics = TaskMetrics(
             task_index=task_index,
             task_id=task.task_id,
@@ -296,6 +336,7 @@ def run_stream(
             time_seconds=float(task_time),
             state=state,
             forgetting=forgetting,
+            probe=probe,
         )
         task_metrics.append(metrics)
         if task_callback is not None:
@@ -335,6 +376,20 @@ def run_stream(
     if evaluate_forgetting:
         final_train = evaluate_train_tasks(model, stream.tasks, stream.task_type)
 
+    probe_metrics = [
+        metrics.probe for metrics in task_metrics if metrics.probe is not None
+    ]
+    probe_task_mean = (
+        float(np.mean([item["ace"] for item in probe_metrics]))
+        if probe_metrics
+        else None
+    )
+    probe_total_error = sum(item["total_error"] for item in probe_metrics)
+    probe_total_n = sum(item["n_samples"] for item in probe_metrics)
+    probe_pooled = (
+        float(probe_total_error / probe_total_n) if probe_total_n else None
+    )
+
     summary = {
         "final_task_ace": task_metrics[-1].ace if task_metrics else None,
         "final_cumulative_ace": float(np.mean([m.ace for m in task_metrics]))
@@ -364,6 +419,10 @@ def run_stream(
         "mean_old_test_ace": mean_old_test_ace,
         "final_train_ace_task_mean": final_train["task_mean"] if final_train else None,
         "final_train_ace_pooled": final_train["pooled"] if final_train else None,
+        "probe_ace_task_mean": probe_task_mean,
+        "probe_ace_pooled": probe_pooled,
+        "probe_n_tasks": len(probe_metrics),
+        "probe_n_samples": int(probe_total_n),
     }
 
     selected_models = None
@@ -410,6 +469,9 @@ def _task_log_payload(metrics: TaskMetrics) -> dict[str, Any]:
     if metrics.forgetting is not None:
         for key, value in metrics.forgetting.items():
             payload[f"forgetting/{key}"] = value
+    if metrics.probe is not None:
+        for key, value in metrics.probe.items():
+            payload[f"probe/{key}"] = value
     return to_jsonable(payload)
 
 
@@ -486,6 +548,7 @@ def execute_run(
             "model_overrides": spec.model_overrides,
             "test_fraction": spec.test_fraction,
             "evaluate_forgetting": spec.evaluate_forgetting,
+            "probe_fraction": spec.probe_fraction,
             "smoke": smoke,
             "base": base,
         },
@@ -505,6 +568,7 @@ def execute_run(
         spec.seed,
         model_overrides=spec.model_overrides,
         evaluate_forgetting=spec.evaluate_forgetting,
+        probe_fraction=spec.probe_fraction,
         log_every=int(base.get("runtime", {}).get("log_every", 10)),
         logger=logger,
         log_selected_models=spec.log_selected_models,
@@ -536,6 +600,7 @@ def execute_run(
                 "model_overrides": spec.model_overrides,
                 "test_fraction": spec.test_fraction,
                 "evaluate_forgetting": spec.evaluate_forgetting,
+                "probe_fraction": spec.probe_fraction,
                 "smoke": smoke,
                 "notes": spec.notes,
             }
@@ -594,6 +659,7 @@ def save_result(result: RunResult, results_dir: Path) -> Path:
                 "time_seconds": metrics.time_seconds,
                 "state": metrics.state,
                 "forgetting": metrics.forgetting,
+                "probe": metrics.probe,
             }
             for metrics in result.tasks
         ],

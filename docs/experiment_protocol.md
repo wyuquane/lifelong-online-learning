@@ -129,17 +129,14 @@ model is appended to the knowledge base after the task but is not added to the
 cover used during that task. `tau=0` uses the full knowledge base and AKLO's
 `log(t-1)` epsilon, so AKLOMS reduces exactly to AKLO.
 
-The E4/E5 sweeps use the paper's figure legends:
+The E4/E5 sweeps use the exact paper figure legends:
 
-* Classification (`syn1`): `eta in [10, 1, 0.01, 0.001, 0.0001]`,
-  `lambda in [0, 0.0001, 0.001, 0.01, 0.05, 0.1]`,
-  `delta_alpha in [0, 0.001, 0.01, 0.1, 1]`.
-* Regression (`syn3`): `eta in [0.5, 0.25, 0.05, 0.005, 0.0005, 0.0001, 0]`,
+* Classification (`syn1`): `eta in [10, 1, 0.01, 0.001, 0.0001, 0]`,
+  `lambda in [0, 0.0001, 0.001, 0.005, 0.01, 0.05, 0.1]`,
+  `delta_alpha in [0, 0.001, 0.005, 0.01, 1]`.
+* Regression (`syn3`): `eta in [0.5, 0.25, 0.05, 0.0005, 0.0001, 0]`,
   `lambda in [0, 0.25, 0.625, 0.75, 0.875, 1]`,
   `delta_alpha in [0, 0.001, 0.005, 0.01, 0.025, 1]`.
-
-The `0.005` regression learning rate is added to the legend because the text
-reports it as the best value.
 
 ## 5. Baselines
 
@@ -166,7 +163,7 @@ reports it as the best value.
 | --- | --- | --- | --- | --- |
 | E1 | Table 1 | `configs/experiments/e1_main.yaml` | `python scripts/run.py --experiment e1_main` | Main comparison on all 7 datasets |
 | E2 | Figure 3 | `configs/experiments/e2_small_m.yaml` | `python scripts/run.py --experiment e2_small_m` | ACE versus `m_t` on `syn1` |
-| E3 | Table 2 | `configs/experiments/e3_forgetting.yaml` | `python scripts/run.py --experiment e3_forgetting` | Catastrophic forgetting with a held-out split |
+| E3 | Table 2 | `configs/experiments/e3_forgetting.yaml` | `python scripts/run.py --experiment e3_forgetting` | Task-specific predictor on a 20% training-sample probe |
 | E4 | Figure 4 | `configs/experiments/e4_sensitivity_cls.yaml` | `python scripts/run.py --experiment e4_sensitivity_cls` | Classification sensitivity to `eta`, `lambda`, `delta_alpha` |
 | E5 | Figure 5 | `configs/experiments/e5_sensitivity_reg.yaml` | `python scripts/run.py --experiment e5_sensitivity_reg` | Regression sensitivity to `eta`, `lambda`, `delta_alpha` |
 | E6 | Table 3 | `configs/experiments/e6_akloms_tau.yaml` | `python scripts/run.py --experiment e6_akloms_tau` | AKLOMS ACE versus `tau` |
@@ -174,31 +171,27 @@ reports it as the best value.
 | E8 | Figure 8 | `configs/experiments/e8_runtime.yaml` | `python scripts/run.py --experiment e8_runtime` | Runtime versus task count, `m_t`, and `tau` |
 
 E1/E2/E4-E8 use `test_fraction: 0.0`: every task is a pure online stream, as
-in the paper's ACE definition. E3 uses `test_fraction: 0.2` to create held-out
-test sets for the forgetting diagnostics.
+in the paper's ACE definition. E3 also uses `test_fraction: 0.0`; its probe is
+drawn from the training samples, not from a held-out split.
 
 ### E3 protocol
 
-For every task, after training it, the runner evaluates:
+E3 implements the revised training-sample protocol. The run trains every method
+on the full stream exactly as in E1. Before training, the runner draws a fixed
+probe of 20% of each task's training samples without replacement, using
+`np.random.default_rng(seed + 7919)`; every method sees the same indices. After
+a task ends, its task-specific predictor `f_t` is frozen (the snapshot appended
+to the knowledge base, or the OTB ensemble of the task's learners) and
+evaluated on that task's probe. The primary metric is `probe_ace_task_mean`,
+the mean over tasks of the per-task probe ACE; `probe_ace_pooled` is secondary
+and prequential ACE is reported for context. The old current/old/final-test
+metrics are not computed.
 
-* `current_task_mean`: the just-trained model on the current task's held-out
-  test set;
-* `old_tasks_mean`: the just-trained model on the held-out test sets of all
-  earlier tasks;
-* `task_mean` and `pooled`: all seen tasks, with the current task included.
-
-The final model is additionally evaluated on all held-out test sets
-(`forgetting_task_mean`, `forgetting_pooled`, `forgetting_old_tasks_mean`) and
-on all training samples (`final_train_ace_task_mean`,
-`final_train_ace_pooled`). The training-data number is a diagnostic for the
-alternative reading of Table 2 in which the paper re-feeds training samples;
-it is not a held-out estimate.
-
-The paper's Table 2 is lower than Table 1 for AKLO, which is consistent with
-re-feeding training samples after training. Our final-model held-out test ACE
-is much worse because the meta weights adapt to the last task and the model is
-then applied to all earlier tasks without adaptation. The report keeps both
-numbers rather than choosing one silently.
+This protocol measures how well each task's own predictor fits its training
+distribution, not cross-task retention. In particular AKLO, ITOL and Unif_Sum
+share the same online per-task update, so their frozen `f_t` (and probe ACE)
+coincide; TOL/TranOL and OTB differ. The paper's Table 2 instead feeds test
+samples of previous tasks to the final model, so the comparison is qualitative.
 
 ## 7. Repetitions and seeds
 
@@ -212,8 +205,8 @@ choice; adding seeds to a config reproduces the paper's repetition protocol.
 ## 8. Runtime measurement
 
 `train_seconds` wraps only the per-sample `predict` + `update` loop. Data
-loading, model construction, forgetting evaluation, JSON serialization, and
-W&B logging are excluded. `total_seconds` includes all of the run after data
+loading, model construction, probe evaluation, JSON serialization, and W&B
+logging are excluded. `total_seconds` includes all of the run after data
 loading. E8 reports `train_seconds`.
 
 AKLOMS updates its cover inside the timed loop. The cover check uses an exact

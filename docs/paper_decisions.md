@@ -18,7 +18,7 @@ reported digit is reproducible.
 | `syn4` marginal | Identical settings to `syn2` | Same as `syn2`, with regression targets | Follows the paper's statement that `syn4` is the adversarial version of `syn3`. |
 | Task order | Arbitrarily and sequentially provided | Global random shuffle per seed, same order for every method | The paper shuffles task order in each repetition. |
 | Example order | Shuffled per task | Shuffled per task per seed, same order for every method | Matches the paper's protocol. |
-| Held-out split | Not used for E1/E2/E4-E8 | `test_fraction=0.0`; only E3 uses 20% | E1/E2/E4-E8 are pure online experiments; a held-out split would change the stream length and ACE definition. |
+| Held-out split | Not used for E1/E2/E4-E8 | `test_fraction=0.0` for every experiment; E3's 20% probe is drawn from training samples | All experiments are pure online streams; the E3 probe is an evaluation subset, not a held-out split. |
 
 The sample pool per synthetic task is at least 300 observations, and a run
 with `m_t < 300` uses the first `m_t` rows of that pool. This makes E2's
@@ -91,7 +91,7 @@ and in the model configs.
 | --- | --- | --- | --- |
 | Repetitions | 10 per experiment | **1 seed** (`seed=0`) for the committed results | Compute budget. The configs accept multiple seeds; adding them reproduces the paper's repetition protocol. |
 | E1/E2/E4-E8 evaluation | Online ACE | Online ACE, `test_fraction=0` | Matches the paper. |
-| E3 evaluation | Table 2, "test samples from previous tasks" | Held-out 20% per task plus several diagnostics | The paper does not specify the split or the evaluation instant. See below. |
+| E3 evaluation | Table 2, "test samples from previous tasks" | 20% training-sample probe per task, scored by that task's frozen `f_t` | User decision; the paper does not specify the split or the evaluation instant. See below. |
 | Global shuffle | Random task and example order per repetition | Deterministic shuffle per seed; same for every method | Necessary for a controlled comparison. |
 | Runtime | Wall-clock scaling | `train_seconds` around the predict/update loop only; one measurement | Excludes data loading and logging so that W&B does not contaminate the measurement. The AKLOMS cover check uses an exact nearest-cover binary search, so distance comparison stays negligible next to prediction, as the paper assumes. |
 
@@ -104,27 +104,37 @@ it with the pairwise check, and spot checks on E6/E7 reproduce the same ACE and
 cover ratio. E8 was rerun after this change. Wall-clock timing on a shared
 laptop is still noisy, so the E8 numbers remain indicative.
 
-### E3: the forgetting ambiguity
+### E3: task-specific training-sample probe
 
 The paper's Table 2 is lower than Table 1, especially for AKLO. One plausible
 reading is that after training, the model is evaluated on the training samples
 of previous tasks. Another is that a held-out test set is used at the end of
 each task. The paper does not say which.
 
-Our E3 uses a 20% held-out test split per task (an assistant choice, not a
-user decision) and reports:
+Following the user's decision, E3 uses the training-sample reading with a
+task-specific predictor:
 
-* prequential ACE (comparable to Table 1);
-* mean current-task held-out test ACE;
-* mean old-task held-out test ACE;
-* final model on all held-out test tasks;
-* final model on all training samples (the "re-feed training data" reading).
+* every run uses `test_fraction: 0.0` and trains all methods on the full
+  stream;
+* 20% of each task's training samples are drawn without replacement with
+  `np.random.default_rng(seed + 7919)`, at least one sample per task, and the
+  same indices are used for every method;
+* after a task ends, its frozen predictor `f_t` is evaluated on that task's
+  probe; AKLO/ITOL/Unif_Sum/TOL/TranOL use the saved snapshot, OTB uses the
+  weighted ensemble of the task's learners, and AKLOMS uses
+  `knowledge_base[-1]`;
+* the primary metric is `probe_ace_task_mean`; `probe_ace_pooled` and the
+  prequential ACE are reported as secondary context.
 
-On `syn1`/AKLO, the prequential ACE is about 12.5%, the mean current-task test
-ACE is about 15.0%, the mean old-task test ACE is about 39.1%, the final
-held-out test ACE is about 36.6%, and the final training-data ACE is about
-36.4%. The paper's Table 2 value is 8.78. The gap is documented rather than
-hidden; see `reports/report.md` and the discussion in the README.
+The old current-task/old-task/final-test forgetting metrics were removed, the
+old E3 W&B runs were deleted, and E3 was rerun for all methods.
+
+This protocol measures task-specific fit, not cross-task retention. AKLO,
+ITOL and Unif_Sum share the same per-task online update, so their `f_t` and
+probe ACE coincide; TOL/TranOL differ through transfer and OTB through its
+ensemble. The paper's Table 2 applies the final model to previous tasks, which
+is a different question, so the comparison is qualitative. Cross-task
+retention is visible in the prequential ACE and in E1.
 
 ## 6. Data acquisition
 
@@ -151,10 +161,11 @@ failures:
    loss and data scale. Our values (e.g. AKLO 1.06 on `syn3`) are internally
    consistent with the generated targets. This remains an unresolved
    inconsistency in the paper's reported numbers.
-3. **E3 final-model test ACE is much worse than the paper's Table 2.** The
-   meta weights adapt to the last task; applying the final model to all
-   earlier tasks is a harsh diagnostic. The final training-data ACE is closer
-   to the paper's reading but is still not an exact match.
+3. **E3 is not the paper's Table 2 protocol.** The paper applies the final
+   model to previous tasks; our E3 applies each task's frozen predictor to a
+   20% probe of its own training samples. It therefore measures task-specific
+   fit, and AKLO/ITOL/Unif_Sum necessarily coincide because their per-task
+   update is identical.
 4. **OTB and TranOL are approximations**, so their absolute numbers should not
    be compared digit-for-digit with the paper.
 

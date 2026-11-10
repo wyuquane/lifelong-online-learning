@@ -35,6 +35,7 @@ def _make_spec(
     model_overrides: dict[str, Any] | None = None,
     test_fraction: float = 0.0,
     evaluate_forgetting: bool = False,
+    probe_fraction: float = 0.0,
     log_selected_models: bool = False,
     notes: dict[str, Any] | None = None,
 ) -> RunSpec:
@@ -53,6 +54,7 @@ def _make_spec(
         model_overrides=dict(model_overrides or {}),
         test_fraction=float(test_fraction),
         evaluate_forgetting=bool(evaluate_forgetting),
+        probe_fraction=float(probe_fraction),
         log_selected_models=bool(log_selected_models),
         notes=dict(notes or {}),
     )
@@ -82,6 +84,9 @@ def _e1_main(experiment: dict[str, Any], config: dict[str, Any]) -> list[RunSpec
                         test_fraction=float(experiment.get("test_fraction", 0.0)),
                         evaluate_forgetting=bool(
                             experiment.get("evaluate_forgetting", False)
+                        ),
+                        probe_fraction=float(
+                            experiment.get("probe_fraction", 0.0)
                         ),
                     )
                 )

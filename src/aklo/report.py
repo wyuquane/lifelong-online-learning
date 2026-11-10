@@ -29,6 +29,26 @@ METHOD_LABELS = {
     "akloms": "AKLOMS",
 }
 
+# Paper Figures 4/5 use the legend order from the experiment config, not a
+# numeric sort.  Keep that order so the figures match the paper.
+SENSITIVITY_ORDER = {
+    "e4_sensitivity_cls": {
+        "eta": [10, 1, 0.01, 0.001, 0.0001, 0],
+        "lambda": [0, 0.0001, 0.001, 0.005, 0.01, 0.05, 0.1],
+        "delta_alpha": [0, 0.001, 0.005, 0.01, 1],
+    },
+    "e5_sensitivity_reg": {
+        "eta": [0.5, 0.25, 0.05, 0.0005, 0.0001, 0],
+        "lambda": [0, 0.25, 0.625, 0.75, 0.875, 1],
+        "delta_alpha": [0, 0.001, 0.005, 0.01, 0.025, 1],
+    },
+}
+SENSITIVITY_SYMBOLS = {
+    "eta": r"$\eta$",
+    "lambda": r"$\lambda$",
+    "delta_alpha": r"$\Delta\alpha$",
+}
+
 # Paper Table 1: Average Cumulative Error Rate (%) +/- standard deviation.
 PAPER_TABLE1: dict[str, dict[str, float]] = {
     "syn1": {
@@ -276,6 +296,13 @@ def _mean_std(values: list[float]) -> str:
     return f"{mean:.2f} ± {float(np.std(values, ddof=0)):.2f}"
 
 
+def _mean_int(values: list[float]) -> str:
+    """Format a count as an integer (means of identical counts stay exact)."""
+    if not values:
+        return "-"
+    return str(int(round(float(np.mean(values)))))
+
+
 def _link(value: str, result: dict[str, Any] | None) -> str:
     if result is None:
         return value
@@ -402,14 +429,21 @@ def table_e2(results: list[dict[str, Any]]) -> str:
 
 
 def table_e3(results: list[dict[str, Any]]) -> str:
-    """Held-out test diagnostics for the forgetting experiment."""
+    """E3: task-specific predictor on a 20% training-sample probe."""
     datasets = [name for name in DATASET_ORDER if any(r["dataset"] == name for r in results)]
     methods = [
         method
         for method in METHOD_ORDER
         if any(r["method"] == method for r in results)
     ]
-    headers = ["Dataset", "Method", "Prequential", "Current test", "Old test", "Final test", "Final train"]
+    headers = [
+        "Dataset",
+        "Method",
+        "Prequential ACE",
+        "Probe ACE (task mean)",
+        "Probe ACE (pooled)",
+        "Probe samples",
+    ]
     rows = []
     for dataset in datasets:
         for method in methods:
@@ -421,20 +455,19 @@ def table_e3(results: list[dict[str, Any]]) -> str:
                     dataset,
                     METHOD_LABELS[method],
                     _link(_mean_std(_values(group, "final_cumulative_ace", _ace_scale)), _first(group)),
-                    _mean_std(_values(group, "mean_current_test_ace", _ace_scale)),
-                    _mean_std(_values(group, "mean_old_test_ace", _ace_scale)),
-                    _mean_std(_values(group, "forgetting_task_mean", _ace_scale)),
-                    _mean_std(_values(group, "final_train_ace_task_mean", _ace_scale)),
+                    _mean_std(_values(group, "probe_ace_task_mean", _ace_scale)),
+                    _mean_std(_values(group, "probe_ace_pooled", _ace_scale)),
+                    _mean_int(_values(group, "probe_n_samples")),
                 ]
             )
     return _markdown_table(headers, rows)
 
 
 def table_e3_paper(results: list[dict[str, Any]]) -> str:
-    """Side-by-side paper Table 2 and the reproduction's final test ACE."""
+    """Paper Table 2 next to the E3 training-sample probe."""
     datasets = [name for name in DATASET_ORDER if name in PAPER_TABLE2]
     methods = ["itol", "tol", "unif_sum", "tranol", "otb", "aklo"]
-    headers = ["Dataset", "Method", "Paper Table 2", "Our final test", "Our final train"]
+    headers = ["Dataset", "Method", "Paper Table 2", "Our E3 probe"]
     rows = []
     for dataset in datasets:
         for method in methods:
@@ -449,8 +482,7 @@ def table_e3_paper(results: list[dict[str, Any]]) -> str:
                     dataset,
                     METHOD_LABELS[method],
                     f"{paper_value:.2f}",
-                    _mean_std(_values(group, "forgetting_task_mean", _ace_scale)),
-                    _mean_std(_values(group, "final_train_ace_task_mean", _ace_scale)),
+                    _mean_std(_values(group, "probe_ace_task_mean", _ace_scale)),
                 ]
             )
     return _markdown_table(headers, rows)
@@ -459,6 +491,7 @@ def table_e3_paper(results: list[dict[str, Any]]) -> str:
 def _sensitivity_table(
     results: list[dict[str, Any]],
     parameter: str,
+    ace_label: str = "ACE (%)",
 ) -> str:
     groups = _group(
         results,
@@ -467,7 +500,7 @@ def _sensitivity_table(
     # Runs that do not override this parameter belong to the sweeps of the
     # other parameters and must not be pooled into a spurious "None" row.
     groups.pop(None, None)
-    headers = [parameter, "ACE (%)", "W&B"]
+    headers = [parameter, ace_label, "W&B"]
     rows = []
     for value in sorted(groups, key=lambda item: (item is None, item)):
         group = groups[value]
@@ -488,7 +521,7 @@ def table_e4(results: list[dict[str, Any]]) -> str:
 
 
 def table_e5(results: list[dict[str, Any]]) -> str:
-    return _sensitivity_table(results, "eta")
+    return _sensitivity_table(results, "eta", ace_label="ACE")
 
 
 def table_e6(results: list[dict[str, Any]]) -> str:
@@ -746,32 +779,39 @@ def figure_e2(results: list[dict[str, Any]], output_dir: Path) -> Path | None:
 def figure_e3(results: list[dict[str, Any]], output_dir: Path) -> Path | None:
     plt = _pyplot()
     datasets = [name for name in DATASET_ORDER if any(r["dataset"] == name for r in results)]
-    if not datasets:
+    methods = [m for m in METHOD_ORDER if any(r["method"] == m for r in results)]
+    if not datasets or not methods:
         return None
-    metrics = [
-        ("final_cumulative_ace", "Prequential"),
-        ("mean_current_test_ace", "Current test"),
-        ("mean_old_test_ace", "Old test"),
-        ("forgetting_task_mean", "Final test"),
+    panels = [
+        ("Classification", [d for d in CLASSIFICATION_DATASETS if d in datasets], "ACE (%)"),
+        ("Regression", [d for d in REGRESSION_DATASETS if d in datasets], "ACE"),
     ]
-    x = np.arange(len(datasets))
-    width = 0.8 / len(metrics)
-    fig, ax = plt.subplots(figsize=(10, 4.5))
-    for index, (key, label) in enumerate(metrics):
-        means = []
-        for dataset in datasets:
-            values = _values(
-                _method_results(results, dataset, "aklo"),
-                key,
-                _ace_scale,
+    panels = [panel for panel in panels if panel[1]]
+    fig, axes = plt.subplots(1, len(panels), figsize=(13, 4.8), squeeze=False)
+    for axis, (title, subset, ylabel) in zip(axes[0], panels):
+        x = np.arange(len(subset))
+        width = 0.8 / len(methods)
+        for index, method in enumerate(methods):
+            means = []
+            for dataset in subset:
+                values = _values(
+                    _method_results(results, dataset, method),
+                    "probe_ace_task_mean",
+                    _ace_scale,
+                )
+                means.append(float(np.mean(values)) if values else np.nan)
+            axis.bar(
+                x + index * width - 0.4 + width / 2,
+                means,
+                width,
+                label=METHOD_LABELS[method],
             )
-            means.append(float(np.mean(values)) if values else np.nan)
-        ax.bar(x + index * width - 0.4 + width / 2, means, width, label=label)
-    ax.set_xticks(x)
-    ax.set_xticklabels(datasets)
-    ax.set_ylabel("ACE (%)")
-    ax.set_title("E3: AKLO prequential vs held-out test diagnostics")
-    ax.legend(fontsize=8)
+        axis.set_xticks(x)
+        axis.set_xticklabels(subset)
+        axis.set_ylabel(ylabel)
+        axis.set_title(f"E3: {title.lower()} tasks")
+    axes[0][0].legend(ncol=2, fontsize=8)
+    fig.suptitle("E3: 20% training-sample probe with each task's own predictor")
     fig.tight_layout()
     path = output_dir / "e3_forgetting.png"
     fig.savefig(path, dpi=160)
@@ -779,110 +819,117 @@ def figure_e3(results: list[dict[str, Any]], output_dir: Path) -> Path | None:
     return path
 
 
-def _sensitivity_figure(
+def _task_curves(
     results: list[dict[str, Any]],
     parameter: str,
-    title: str,
+    values: list[float],
+) -> dict[float, np.ndarray]:
+    """Average cumulative-ACE curves for each swept parameter value."""
+    curves: dict[float, np.ndarray] = {}
+    for value in values:
+        group = [
+            result
+            for result in results
+            if result.get("config", {})
+            .get("model_overrides", {})
+            .get(parameter)
+            == value
+        ]
+        arrays = []
+        for result in group:
+            tasks = result.get("tasks", [])
+            if not tasks:
+                continue
+            curve = np.asarray(
+                [task.get("cumulative_ace", np.nan) for task in tasks],
+                dtype=np.float64,
+            )
+            arrays.append(curve * _ace_scale(result))
+        if arrays:
+            length = min(len(array) for array in arrays)
+            curves[float(value)] = np.mean(
+                [array[:length] for array in arrays], axis=0
+            )
+    return curves
+
+
+def _paper_sensitivity_figure(
+    results: list[dict[str, Any]],
+    experiment: str,
     output_path: Path,
 ) -> Path | None:
+    """Three-panel ACE-vs-task figure in the style of paper Figures 4/5."""
     plt = _pyplot()
-    groups = _group(
-        results,
-        lambda result: result["config"].get("model_overrides", {}).get(parameter),
-    )
-    if not groups:
+    if not results:
         return None
-    points = []
-    for value, group in groups.items():
-        if value is None:
-            continue
-        values = _values(group, "final_cumulative_ace", _ace_scale)
-        if values:
-            points.append((float(value), float(np.mean(values))))
-    if not points:
+    order = SENSITIVITY_ORDER[experiment]
+    parameters = ["eta", "lambda", "delta_alpha"]
+    task_type = results[0].get("task_type", "classification")
+    ylabel = "ACE (%)" if task_type == "classification" else "ACE"
+    colors = plt.get_cmap("tab10").colors
+    markers = ["o", "s", "^", "D", "x", "v", "P"]
+
+    fig, axes = plt.subplots(1, 3, figsize=(15, 4.8))
+    plotted = False
+    for axis, parameter, letter in zip(axes, parameters, "abc"):
+        values = order[parameter]
+        curves = _task_curves(results, parameter, values)
+        for index, value in enumerate(values):
+            curve = curves.get(float(value))
+            if curve is None:
+                continue
+            symbol = SENSITIVITY_SYMBOLS[parameter]
+            axis.plot(
+                np.arange(len(curve)),
+                curve,
+                color=colors[index % len(colors)],
+                marker=markers[index % len(markers)],
+                markersize=4.5,
+                markerfacecolor="white",
+                markeredgewidth=1.1,
+                markevery=10,
+                linewidth=1.5,
+                label=f"{symbol} = {value:g}",
+            )
+            plotted = True
+        axis.set_xlim(0, 200)
+        axis.set_xticks(np.arange(0, 201, 25))
+        axis.set_xlabel("Tasks", labelpad=2)
+        axis.set_ylabel(ylabel)
+        axis.set_ylim(bottom=0.0)
+        axis.legend(loc="upper right", fontsize=7.5, frameon=True)
+        axis.text(
+            0.5,
+            -0.30,
+            f"({letter}) Parameter: {SENSITIVITY_SYMBOLS[parameter]}",
+            transform=axis.transAxes,
+            ha="center",
+            va="top",
+            fontsize=12,
+        )
+    if not plotted:
+        plt.close(fig)
         return None
-    points.sort()
-    fig, ax = plt.subplots(figsize=(6, 4))
-    ax.plot([p[0] for p in points], [p[1] for p in points], marker="o")
-    ax.set_xscale("symlog", linthresh=1e-5)
-    ax.set_xlabel(parameter)
-    ax.set_ylabel("ACE (%)")
-    ax.set_title(title)
-    fig.tight_layout()
-    fig.savefig(output_path, dpi=160)
+    fig.subplots_adjust(bottom=0.24, wspace=0.30)
+    fig.savefig(output_path, dpi=160, bbox_inches="tight")
     plt.close(fig)
     return output_path
 
 
 def figure_e4(results: list[dict[str, Any]], output_dir: Path) -> Path | None:
-    # The experiment contains three sweeps; make one figure with three panels.
-    plt = _pyplot()
-    parameters = ["eta", "lambda", "delta_alpha"]
-    fig, axes = plt.subplots(1, 3, figsize=(13, 3.8))
-    plotted = False
-    for axis, parameter in zip(axes, parameters):
-        groups = _group(
-            results,
-            lambda result: result["config"].get("model_overrides", {}).get(parameter),
-        )
-        points = []
-        for value, group in groups.items():
-            if value is None:
-                continue
-            values = _values(group, "final_cumulative_ace", _ace_scale)
-            if values:
-                points.append((float(value), float(np.mean(values))))
-        if points:
-            points.sort()
-            axis.plot([p[0] for p in points], [p[1] for p in points], marker="o")
-            axis.set_xscale("symlog", linthresh=1e-5)
-            plotted = True
-        axis.set_xlabel(parameter)
-        axis.set_ylabel("ACE (%)")
-        axis.set_title(f"syn1: {parameter}")
-    if not plotted:
-        plt.close(fig)
-        return None
-    fig.tight_layout()
-    path = output_dir / "e4_sensitivity_cls.png"
-    fig.savefig(path, dpi=160)
-    plt.close(fig)
-    return path
+    return _paper_sensitivity_figure(
+        results,
+        "e4_sensitivity_cls",
+        output_dir / "e4_sensitivity_cls.png",
+    )
 
 
 def figure_e5(results: list[dict[str, Any]], output_dir: Path) -> Path | None:
-    plt = _pyplot()
-    parameters = ["eta", "lambda", "delta_alpha"]
-    fig, axes = plt.subplots(1, 3, figsize=(13, 3.8))
-    plotted = False
-    for axis, parameter in zip(axes, parameters):
-        groups = _group(
-            results,
-            lambda result: result["config"].get("model_overrides", {}).get(parameter),
-        )
-        points = []
-        for value, group in groups.items():
-            if value is None:
-                continue
-            values = _values(group, "final_cumulative_ace", _ace_scale)
-            if values:
-                points.append((float(value), float(np.mean(values))))
-        if points:
-            points.sort()
-            axis.plot([p[0] for p in points], [p[1] for p in points], marker="o")
-            axis.set_xscale("symlog", linthresh=1e-5)
-            plotted = True
-        axis.set_xlabel(parameter)
-        axis.set_ylabel("ACE (%)")
-        axis.set_title(f"syn3: {parameter}")
-    if not plotted:
-        plt.close(fig)
-        return None
-    fig.tight_layout()
-    path = output_dir / "e5_sensitivity_reg.png"
-    fig.savefig(path, dpi=160)
-    plt.close(fig)
-    return path
+    return _paper_sensitivity_figure(
+        results,
+        "e5_sensitivity_reg",
+        output_dir / "e5_sensitivity_reg.png",
+    )
 
 
 def figure_e6(results: list[dict[str, Any]], output_dir: Path) -> Path | None:
@@ -1079,9 +1126,9 @@ def build_report(
     sections: list[str] = [
         "# AKLO reproduction report",
         "",
-        "Generated from the JSON files in `results/`. Values are percentages",
-        "unless stated otherwise. W&B links are included when the run was",
-        "tracked online.",
+        "Generated from the JSON files in `results/`. Classification ACE is a",
+        "percentage; regression ACE is on the target scale. W&B links are",
+        "included when the run was tracked online.",
         "",
         "## E1: main comparison (paper Table 1)",
         "",
@@ -1095,7 +1142,7 @@ def build_report(
         "",
         table_e2(load_results(results_dir, "e2_small_m")),
         "",
-        "## E3: catastrophic forgetting (paper Table 2)",
+        "## E3: task-specific predictor on a training-sample probe",
         "",
         table_e3(load_results(results_dir, "e3_forgetting")),
         "",
@@ -1103,9 +1150,19 @@ def build_report(
         "",
         table_e3_paper(load_results(results_dir, "e3_forgetting")),
         "",
-        "The paper's Table 2 is lower than its Table 1, which is consistent with",
-        "re-feeding the training samples after training. We keep a held-out",
-        "split and report both readings; see `docs/experiment_protocol.md`.",
+        "E3 follows the revised protocol: after training all tasks, 20% of each",
+        "task's training samples are drawn without replacement and fed to the",
+        "task-specific predictor saved at the end of that task. The probe ACE is",
+        "the task-averaged error on those samples. This is not the same protocol",
+        "as the paper's Table 2, which feeds a test set of previous tasks to the",
+        "final model; the comparison is therefore qualitative. See",
+        "`docs/experiment_protocol.md`.",
+        "",
+        "Interpretation caveat: AKLO, ITOL and Unif_Sum share the same per-task",
+        "online update, so their frozen `f_t` and probe ACE coincide. E3 measures",
+        "how well each task's own predictor fits its training distribution, not",
+        "how much knowledge is retained across tasks; cross-task retention is",
+        "visible in the prequential ACE and in the E1 comparison.",
         "",
         "## E4: classification sensitivity (paper Figure 4)",
         "",
@@ -1129,11 +1186,11 @@ def build_report(
         "",
         "### lambda",
         "",
-        _sensitivity_table(load_results(results_dir, "e5_sensitivity_reg"), "lambda"),
+        _sensitivity_table(load_results(results_dir, "e5_sensitivity_reg"), "lambda", "ACE"),
         "",
         "### delta_alpha",
         "",
-        _sensitivity_table(load_results(results_dir, "e5_sensitivity_reg"), "delta_alpha"),
+        _sensitivity_table(load_results(results_dir, "e5_sensitivity_reg"), "delta_alpha", "ACE"),
         "",
         "## E6: AKLOMS tau sensitivity (paper Table 3)",
         "",

@@ -66,8 +66,7 @@ Per-task metrics (step = task index):
 * `task/n_samples`
 * `state/*` (`alpha`, `epsilon`, `kb_size`, `cover_size`, `selected_ratio`,
   `w_norm`, `beta_entropy`, `beta_max`, `n_updates`, ...)
-* `forgetting/*` for E3 (`task_mean`, `pooled`, `old_tasks_mean`,
-  `current_task_mean`, ...)
+* `probe/*` for E3 (`ace`, `total_error`, `n_samples`)
 
 Sample-level metrics are logged after the run, using the global sample index:
 
@@ -75,7 +74,9 @@ Sample-level metrics are logged after the run, using the global sample index:
 * `sample/task`
 
 Summary fields include `final_cumulative_ace`, `pooled_ace`,
-`final_task_ace`, timing, final model state, E3 diagnostics, and `wandb_url`.
+`final_task_ace`, timing, final model state, E3 probe metrics
+(`probe_ace_task_mean`, `probe_ace_pooled`, `probe_n_tasks`,
+`probe_n_samples`), and `wandb_url`.
 Per-task values are logged as history metrics; no tables or model checkpoints
 are logged, because W&B table logging creates artifacts and this project must
 not contain artifacts.

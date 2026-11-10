@@ -50,7 +50,7 @@ the local files.
 | --- | --- | --- | --- | --- |
 | E1 | Table 1: main comparison | [`e1_main.yaml`](configs/experiments/e1_main.yaml) | `python scripts/run.py --experiment e1_main` | [group](https://forge.coreweave.com/wandb/AI-Athena-Lab/AKLO-lifelong-online-learning/groups/e1_main) |
 | E2 | Figure 3: effect of `m_t` | [`e2_small_m.yaml`](configs/experiments/e2_small_m.yaml) | `python scripts/run.py --experiment e2_small_m` | [group](https://forge.coreweave.com/wandb/AI-Athena-Lab/AKLO-lifelong-online-learning/groups/e2_small_m) |
-| E3 | Table 2: catastrophic forgetting | [`e3_forgetting.yaml`](configs/experiments/e3_forgetting.yaml) | `python scripts/run.py --experiment e3_forgetting` | [group](https://forge.coreweave.com/wandb/AI-Athena-Lab/AKLO-lifelong-online-learning/groups/e3_forgetting) |
+| E3 | Table 2: task-specific training-sample probe | [`e3_forgetting.yaml`](configs/experiments/e3_forgetting.yaml) | `python scripts/run.py --experiment e3_forgetting` | [group](https://forge.coreweave.com/wandb/AI-Athena-Lab/AKLO-lifelong-online-learning/groups/e3_forgetting) |
 | E4 | Figure 4: classification sensitivity | [`e4_sensitivity_cls.yaml`](configs/experiments/e4_sensitivity_cls.yaml) | `python scripts/run.py --experiment e4_sensitivity_cls` | [group](https://forge.coreweave.com/wandb/AI-Athena-Lab/AKLO-lifelong-online-learning/groups/e4_sensitivity_cls) |
 | E5 | Figure 5: regression sensitivity | [`e5_sensitivity_reg.yaml`](configs/experiments/e5_sensitivity_reg.yaml) | `python scripts/run.py --experiment e5_sensitivity_reg` | [group](https://forge.coreweave.com/wandb/AI-Athena-Lab/AKLO-lifelong-online-learning/groups/e5_sensitivity_reg) |
 | E6 | Table 3: AKLOMS `tau` | [`e6_akloms_tau.yaml`](configs/experiments/e6_akloms_tau.yaml) | `python scripts/run.py --experiment e6_akloms_tau` | [group](https://forge.coreweave.com/wandb/AI-Athena-Lab/AKLO-lifelong-online-learning/groups/e6_akloms_tau) |
@@ -122,22 +122,25 @@ below.
 
 See [`docs/paper_decisions.md`](docs/paper_decisions.md) for the complete list.
 
-## E3: catastrophic forgetting
+## E3: task-specific training-sample probe
 
-The paper's Table 2 is lower than Table 1, which is consistent with re-feeding
-training samples after training. We use a 20% held-out test split per task and
-report several diagnostics instead of hiding the ambiguity:
+E3 follows the revised protocol. Every method is trained on the full stream
+(`test_fraction: 0.0`). Before training, 20% of each task's training samples
+are drawn without replacement with `np.random.default_rng(seed + 7919)`; the
+same indices are used for every method. After a task ends, its frozen
+task-specific predictor `f_t` is evaluated on that task's probe. The primary
+metric is the task-averaged probe ACE; the pooled probe ACE and the
+prequential ACE are reported for context. The old current/old/final-test
+forgetting metrics were removed, the old E3 W&B runs were deleted, and E3 was
+rerun for all methods.
 
-* prequential ACE (comparable to Table 1);
-* mean current-task held-out test ACE;
-* mean old-task held-out test ACE;
-* final model on all held-out test tasks;
-* final model on all training samples.
-
-On `syn1`/AKLO: prequential ≈ 12.5%, current-task test ≈ 15.0%, old-task test
-≈ 39.1%, final held-out test ≈ 36.6%, final training-data ACE ≈ 36.4%. The
-paper's Table 2 value is 8.78. The gap and the alternative readings are
-discussed in [`docs/paper_decisions.md`](docs/paper_decisions.md#5-experiment-protocol).
+On `syn1`, AKLO's prequential ACE is 11.95% and its probe ACE is 33.53%.
+ITOL and Unif_Sum have the same probe ACE because all three share the same
+per-task online update; TOL/TransOL reach 20.07% and OTB 14.30%. The protocol
+therefore measures how well each task's own predictor fits its training
+distribution, not cross-task retention. The paper's Table 2 applies the final
+model to previous tasks, so the comparison is qualitative. See
+[`docs/paper_decisions.md`](docs/paper_decisions.md#e3-task-specific-training-sample-probe).
 
 ## Other experiments
 
@@ -146,13 +149,15 @@ at `m_t=200` (13.11% at 40, 13.78% at 80, 13.47% at 160, 11.63% at 300). More
 per-task samples help, matching Figure 3's qualitative trend; the curve is
 noisy because each point is a single seed.
 
-**E4/E5 (hyperparameter sensitivity).** The default classification setting
-(`eta=1`, `lambda=0.001`, `delta_alpha=0.001`) is close to the best region on
-`syn1`. Setting `delta_alpha=0` gives the lowest classification ACE (6.80%)
-because the meta-hypothesis keeps full weight. For regression (`syn3`), the
-default `eta=0.05` gives 1.06, while `eta=0.005` gives 0.80 and `lambda=0`
-gives 0.85. The grids follow the values printed in the paper's figure legends;
-the full tables are in `reports/report.md`.
+**E4/E5 (hyperparameter sensitivity).** The exact grids from the paper's
+figure legends are used. For classification (`syn1`), the default
+`eta=1`, `lambda=0.001`, `delta_alpha=0.001` gives 11.95%; `eta=10` gives
+14.47% and `eta=0` gives 54.34%, while `delta_alpha=0` gives the lowest ACE
+(6.80%) because the meta-hypothesis keeps full weight. For regression
+(`syn3`), `eta=0.0005` gives 0.96, the default `eta=0.05` gives 1.06,
+`lambda=0` gives 0.85, and `delta_alpha=0` gives 0.93. The figures mirror
+paper Figures 4/5: three panels of cumulative ACE against task index, one
+line per parameter value. Full tables are in `reports/report.md`.
 
 **E6 (`tau`).** Small `tau` (≤0.1) is indistinguishable from AKLO. ACE then
 rises with `tau`: on `syn1`, 11.84% at `tau=0.001`, 12.16% at 1, 12.61% at 10,
@@ -173,10 +178,10 @@ All tracked runs are in the public project
 * **Entity:** `AI-Athena-Lab`
 * **Server:** `https://forge.coreweave.com/wandb/AI-Athena-Lab/AKLO-lifelong-online-learning`
 
-Each run logs its config, per-task ACE, cumulative ACE, model state, E3
-forgetting diagnostics, and sample-level running ACE. No artifacts are
-uploaded. See [`docs/wandb.md`](docs/wandb.md) for setup, commands, and the
-run-naming convention.
+Each run logs its config, per-task ACE, cumulative ACE, model state, E3 probe
+metrics, and sample-level running ACE. No artifacts are uploaded. See
+[`docs/wandb.md`](docs/wandb.md) for setup, commands, and the run-naming
+convention.
 
 ## Repository layout
 
@@ -209,7 +214,7 @@ src/aklo/
   runner.py                  # online loop, metrics, JSON/W&B logging
   report.py                  # tables and figures
   theory.py                  # theory instrumentation and analysis
-tests/                       # 71 unit tests
+tests/                       # 75 unit tests
 ```
 
 ## Theory checks

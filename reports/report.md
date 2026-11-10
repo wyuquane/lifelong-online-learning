@@ -1,8 +1,8 @@
 # AKLO reproduction report
 
-Generated from the JSON files in `results/`. Values are percentages
-unless stated otherwise. W&B links are included when the run was
-tracked online.
+Generated from the JSON files in `results/`. Classification ACE is a
+percentage; regression ACE is on the target scale. W&B links are
+included when the run was tracked online.
 
 ## E1: main comparison (paper Table 1)
 
@@ -72,97 +72,107 @@ tracked online.
 | 200 | [32.85](https://forge.coreweave.com/wandb/AI-Athena-Lab/AKLO-lifelong-online-learning/runs/xjbwl4ot) | [20.42](https://forge.coreweave.com/wandb/AI-Athena-Lab/AKLO-lifelong-online-learning/runs/8vuv350g) | [50.09](https://forge.coreweave.com/wandb/AI-Athena-Lab/AKLO-lifelong-online-learning/runs/nu4tr04e) | [35.82](https://forge.coreweave.com/wandb/AI-Athena-Lab/AKLO-lifelong-online-learning/runs/yao85urg) | [16.48](https://forge.coreweave.com/wandb/AI-Athena-Lab/AKLO-lifelong-online-learning/runs/env4g96b) | [10.70](https://forge.coreweave.com/wandb/AI-Athena-Lab/AKLO-lifelong-online-learning/runs/wc3bjja7) |
 | 300 | [30.79](https://forge.coreweave.com/wandb/AI-Athena-Lab/AKLO-lifelong-online-learning/runs/bimk88py) | [19.35](https://forge.coreweave.com/wandb/AI-Athena-Lab/AKLO-lifelong-online-learning/runs/8e6ifsow) | [50.15](https://forge.coreweave.com/wandb/AI-Athena-Lab/AKLO-lifelong-online-learning/runs/x28itc2z) | [35.93](https://forge.coreweave.com/wandb/AI-Athena-Lab/AKLO-lifelong-online-learning/runs/hv78bcsk) | [15.48](https://forge.coreweave.com/wandb/AI-Athena-Lab/AKLO-lifelong-online-learning/runs/0ityqqc8) | [11.63](https://forge.coreweave.com/wandb/AI-Athena-Lab/AKLO-lifelong-online-learning/runs/6jhk07qe) |
 
-## E3: catastrophic forgetting (paper Table 2)
+## E3: task-specific predictor on a training-sample probe
 
-| Dataset | Method | Prequential | Current test | Old test | Final test | Final train |
-| --- | --- | --- | --- | --- | --- | --- |
-| syn1 | ITOL | [38.11](https://forge.coreweave.com/wandb/AI-Athena-Lab/AKLO-lifelong-online-learning/runs/lgnxdjvo) | 34.97 | 45.32 | 46.75 | 46.58 |
-| syn1 | TOL | [25.48](https://forge.coreweave.com/wandb/AI-Athena-Lab/AKLO-lifelong-online-learning/runs/v154ji6h) | 21.93 | 41.03 | 37.15 | 37.30 |
-| syn1 | UnifSum | [48.12](https://forge.coreweave.com/wandb/AI-Athena-Lab/AKLO-lifelong-online-learning/runs/ow6qx2h8) | 48.47 | 48.00 | 49.90 | 49.95 |
-| syn1 | TransOL | [36.72](https://forge.coreweave.com/wandb/AI-Athena-Lab/AKLO-lifelong-online-learning/runs/nl15njzh) | 35.62 | 44.22 | 38.38 | 38.60 |
-| syn1 | OTB | [20.54](https://forge.coreweave.com/wandb/AI-Athena-Lab/AKLO-lifelong-online-learning/runs/e3qr8nxb) | 17.55 | 39.74 | 49.75 | 49.84 |
-| syn1 | AKLO | [12.46](https://forge.coreweave.com/wandb/AI-Athena-Lab/AKLO-lifelong-online-learning/runs/wu4i10rg) | 14.80 | 39.08 | 36.62 | 36.41 |
-| syn2 | ITOL | [39.42](https://forge.coreweave.com/wandb/AI-Athena-Lab/AKLO-lifelong-online-learning/runs/vf2fkj8a) | 34.45 | 49.78 | 50.58 | 50.69 |
-| syn2 | TOL | [39.06](https://forge.coreweave.com/wandb/AI-Athena-Lab/AKLO-lifelong-online-learning/runs/e2rlt9t6) | 34.10 | 49.66 | 50.42 | 50.59 |
-| syn2 | UnifSum | [49.22](https://forge.coreweave.com/wandb/AI-Athena-Lab/AKLO-lifelong-online-learning/runs/4517vsp4) | 47.70 | 48.74 | 50.58 | 50.69 |
-| syn2 | TransOL | [42.42](https://forge.coreweave.com/wandb/AI-Athena-Lab/AKLO-lifelong-online-learning/runs/81w6cucc) | 40.92 | 49.34 | 50.55 | 50.69 |
-| syn2 | OTB | [38.61](https://forge.coreweave.com/wandb/AI-Athena-Lab/AKLO-lifelong-online-learning/runs/bp9ilxvn) | 34.60 | 49.53 | 50.32 | 50.62 |
-| syn2 | AKLO | [12.65](https://forge.coreweave.com/wandb/AI-Athena-Lab/AKLO-lifelong-online-learning/runs/l422yd3u) | 13.42 | 49.70 | 50.35 | 50.60 |
-| landmine | ITOL | [41.67](https://forge.coreweave.com/wandb/AI-Athena-Lab/AKLO-lifelong-online-learning/runs/83dcptk7) | 35.17 | 43.75 | 37.59 | 36.98 |
-| landmine | TOL | [39.37](https://forge.coreweave.com/wandb/AI-Athena-Lab/AKLO-lifelong-online-learning/runs/hdw39sdj) | 34.60 | 43.94 | 29.89 | 30.46 |
-| landmine | UnifSum | [55.60](https://forge.coreweave.com/wandb/AI-Athena-Lab/AKLO-lifelong-online-learning/runs/nbkrwpx0) | 54.94 | 55.76 | 55.17 | 52.67 |
-| landmine | TransOL | [40.26](https://forge.coreweave.com/wandb/AI-Athena-Lab/AKLO-lifelong-online-learning/runs/tsudyb4c) | 36.55 | 45.01 | 26.32 | 26.15 |
-| landmine | OTB | [33.99](https://forge.coreweave.com/wandb/AI-Athena-Lab/AKLO-lifelong-online-learning/runs/k3vxub9y) | 32.18 | 40.43 | 33.33 | 30.57 |
-| landmine | AKLO | [31.35](https://forge.coreweave.com/wandb/AI-Athena-Lab/AKLO-lifelong-online-learning/runs/yoeprz6b) | 27.82 | 36.98 | 32.18 | 33.19 |
-| spam | ITOL | [26.38](https://forge.coreweave.com/wandb/AI-Athena-Lab/AKLO-lifelong-online-learning/runs/wuweazv2) | 22.67 | 35.91 | 44.83 | 45.46 |
-| spam | TOL | [20.67](https://forge.coreweave.com/wandb/AI-Athena-Lab/AKLO-lifelong-online-learning/runs/1ctn6me6) | 17.67 | 22.12 | 15.67 | 15.75 |
-| spam | UnifSum | [28.33](https://forge.coreweave.com/wandb/AI-Athena-Lab/AKLO-lifelong-online-learning/runs/5rc2u97v) | 24.50 | 22.69 | 26.83 | 25.29 |
-| spam | TransOL | [21.92](https://forge.coreweave.com/wandb/AI-Athena-Lab/AKLO-lifelong-online-learning/runs/bf3rzokd) | 21.50 | 20.38 | 18.00 | 17.79 |
-| spam | OTB | [18.42](https://forge.coreweave.com/wandb/AI-Athena-Lab/AKLO-lifelong-online-learning/runs/zz7h21q8) | 13.17 | 16.92 | 11.17 | 11.54 |
-| spam | AKLO | [23.46](https://forge.coreweave.com/wandb/AI-Athena-Lab/AKLO-lifelong-online-learning/runs/jk1nbr3l) | 19.50 | 20.72 | 23.17 | 22.04 |
-| syn3 | ITOL | [7.95](https://forge.coreweave.com/wandb/AI-Athena-Lab/AKLO-lifelong-online-learning/runs/j0zyo8bl) | 6.79 | 6.33 | 12.65 | 12.66 |
-| syn3 | TOL | [7.92](https://forge.coreweave.com/wandb/AI-Athena-Lab/AKLO-lifelong-online-learning/runs/47rvh2uw) | 7.58 | 6.80 | 15.76 | 15.77 |
-| syn3 | UnifSum | [2.01](https://forge.coreweave.com/wandb/AI-Athena-Lab/AKLO-lifelong-online-learning/runs/afoids04) | 2.01 | 1.91 | 1.49 | 1.50 |
-| syn3 | TransOL | [5.01](https://forge.coreweave.com/wandb/AI-Athena-Lab/AKLO-lifelong-online-learning/runs/fte06mvw) | 5.26 | 5.07 | 1.69 | 1.70 |
-| syn3 | AKLO | [0.83](https://forge.coreweave.com/wandb/AI-Athena-Lab/AKLO-lifelong-online-learning/runs/7t34qotx) | 0.87 | 3.03 | 3.80 | 3.80 |
-| syn4 | ITOL | [5.17](https://forge.coreweave.com/wandb/AI-Athena-Lab/AKLO-lifelong-online-learning/runs/i1bgm0cq) | 4.75 | 4.81 | 10.04 | 10.02 |
-| syn4 | TOL | [5.19](https://forge.coreweave.com/wandb/AI-Athena-Lab/AKLO-lifelong-online-learning/runs/5zy78pmh) | 5.14 | 5.20 | 11.25 | 11.23 |
-| syn4 | UnifSum | [1.52](https://forge.coreweave.com/wandb/AI-Athena-Lab/AKLO-lifelong-online-learning/runs/24rxf11f) | 1.51 | 1.48 | 1.23 | 1.23 |
-| syn4 | TransOL | [3.60](https://forge.coreweave.com/wandb/AI-Athena-Lab/AKLO-lifelong-online-learning/runs/tgcj8ybe) | 3.47 | 3.55 | 1.64 | 1.63 |
-| syn4 | AKLO | [0.86](https://forge.coreweave.com/wandb/AI-Athena-Lab/AKLO-lifelong-online-learning/runs/a5qglhhw) | 0.83 | 1.41 | 1.54 | 1.53 |
-| london | ITOL | [15.36](https://forge.coreweave.com/wandb/AI-Athena-Lab/AKLO-lifelong-online-learning/runs/vtjhqocv) | 12.74 | 14.33 | 15.73 | 16.09 |
-| london | TOL | [12.73](https://forge.coreweave.com/wandb/AI-Athena-Lab/AKLO-lifelong-online-learning/runs/cgivjvv6) | 11.83 | 12.90 | 15.01 | 15.37 |
-| london | UnifSum | [15.26](https://forge.coreweave.com/wandb/AI-Athena-Lab/AKLO-lifelong-online-learning/runs/8idr35kz) | 14.81 | 14.27 | 14.71 | 15.06 |
-| london | TransOL | [13.21](https://forge.coreweave.com/wandb/AI-Athena-Lab/AKLO-lifelong-online-learning/runs/mvc1jeb6) | 12.58 | 12.84 | 15.17 | 15.53 |
-| london | AKLO | [12.02](https://forge.coreweave.com/wandb/AI-Athena-Lab/AKLO-lifelong-online-learning/runs/h0cq6llg) | 11.65 | 12.49 | 12.35 | 12.64 |
+| Dataset | Method | Prequential ACE | Probe ACE (task mean) | Probe ACE (pooled) | Probe samples |
+| --- | --- | --- | --- | --- | --- |
+| syn1 | ITOL | [37.32](https://forge.coreweave.com/wandb/AI-Athena-Lab/AKLO-lifelong-online-learning/runs/q1bz576v) | 33.53 | 33.52 | 4000 |
+| syn1 | TOL | [23.62](https://forge.coreweave.com/wandb/AI-Athena-Lab/AKLO-lifelong-online-learning/runs/k8ynvkij) | 20.07 | 20.08 | 4000 |
+| syn1 | UnifSum | [49.93](https://forge.coreweave.com/wandb/AI-Athena-Lab/AKLO-lifelong-online-learning/runs/j4atyc74) | 33.53 | 33.52 | 4000 |
+| syn1 | TransOL | [37.10](https://forge.coreweave.com/wandb/AI-Athena-Lab/AKLO-lifelong-online-learning/runs/sk61dk94) | 20.07 | 20.08 | 4000 |
+| syn1 | OTB | [19.52](https://forge.coreweave.com/wandb/AI-Athena-Lab/AKLO-lifelong-online-learning/runs/yjq64wya) | 14.30 | 14.30 | 4000 |
+| syn1 | AKLO | [11.95](https://forge.coreweave.com/wandb/AI-Athena-Lab/AKLO-lifelong-online-learning/runs/9qpdhign) | 33.53 | 33.52 | 4000 |
+| syn2 | ITOL | [38.12](https://forge.coreweave.com/wandb/AI-Athena-Lab/AKLO-lifelong-online-learning/runs/05t1famj) | 34.17 | 34.17 | 4000 |
+| syn2 | TOL | [37.78](https://forge.coreweave.com/wandb/AI-Athena-Lab/AKLO-lifelong-online-learning/runs/4ivq0785) | 32.65 | 32.65 | 4000 |
+| syn2 | UnifSum | [51.38](https://forge.coreweave.com/wandb/AI-Athena-Lab/AKLO-lifelong-online-learning/runs/u89juo8t) | 34.17 | 34.17 | 4000 |
+| syn2 | TransOL | [44.05](https://forge.coreweave.com/wandb/AI-Athena-Lab/AKLO-lifelong-online-learning/runs/s2jgivf1) | 32.65 | 32.65 | 4000 |
+| syn2 | OTB | [37.53](https://forge.coreweave.com/wandb/AI-Athena-Lab/AKLO-lifelong-online-learning/runs/nx3z8wgf) | 33.65 | 33.65 | 4000 |
+| syn2 | AKLO | [10.32](https://forge.coreweave.com/wandb/AI-Athena-Lab/AKLO-lifelong-online-learning/runs/aoabf2pd) | 34.17 | 34.17 | 4000 |
+| landmine | ITOL | [38.39](https://forge.coreweave.com/wandb/AI-Athena-Lab/AKLO-lifelong-online-learning/runs/wecrjww7) | 34.48 | 34.48 | 870 |
+| landmine | TOL | [38.30](https://forge.coreweave.com/wandb/AI-Athena-Lab/AKLO-lifelong-online-learning/runs/hkvz21f3) | 32.30 | 32.30 | 870 |
+| landmine | UnifSum | [39.20](https://forge.coreweave.com/wandb/AI-Athena-Lab/AKLO-lifelong-online-learning/runs/qcmg6w30) | 34.48 | 34.48 | 870 |
+| landmine | TransOL | [38.21](https://forge.coreweave.com/wandb/AI-Athena-Lab/AKLO-lifelong-online-learning/runs/9gshzzyk) | 32.30 | 32.30 | 870 |
+| landmine | OTB | [33.95](https://forge.coreweave.com/wandb/AI-Athena-Lab/AKLO-lifelong-online-learning/runs/hvhz6q35) | 28.51 | 28.51 | 870 |
+| landmine | AKLO | [29.95](https://forge.coreweave.com/wandb/AI-Athena-Lab/AKLO-lifelong-online-learning/runs/yje23s60) | 34.48 | 34.48 | 870 |
+| spam | ITOL | [25.63](https://forge.coreweave.com/wandb/AI-Athena-Lab/AKLO-lifelong-online-learning/runs/4stuhpdx) | 16.67 | 16.67 | 600 |
+| spam | TOL | [20.47](https://forge.coreweave.com/wandb/AI-Athena-Lab/AKLO-lifelong-online-learning/runs/49qi2om9) | 13.17 | 13.17 | 600 |
+| spam | UnifSum | [24.70](https://forge.coreweave.com/wandb/AI-Athena-Lab/AKLO-lifelong-online-learning/runs/qm7lwbc4) | 16.67 | 16.67 | 600 |
+| spam | TransOL | [21.20](https://forge.coreweave.com/wandb/AI-Athena-Lab/AKLO-lifelong-online-learning/runs/vz5yap4u) | 13.17 | 13.17 | 600 |
+| spam | OTB | [17.50](https://forge.coreweave.com/wandb/AI-Athena-Lab/AKLO-lifelong-online-learning/runs/e9spuf5n) | 10.67 | 10.67 | 600 |
+| spam | AKLO | [19.50](https://forge.coreweave.com/wandb/AI-Athena-Lab/AKLO-lifelong-online-learning/runs/8qkklxdn) | 16.67 | 16.67 | 600 |
+| syn3 | ITOL | [7.94](https://forge.coreweave.com/wandb/AI-Athena-Lab/AKLO-lifelong-online-learning/runs/pv92rwna) | 7.82 | 7.82 | 4000 |
+| syn3 | TOL | [7.94](https://forge.coreweave.com/wandb/AI-Athena-Lab/AKLO-lifelong-online-learning/runs/6vplir2p) | 8.45 | 8.45 | 4000 |
+| syn3 | UnifSum | [1.60](https://forge.coreweave.com/wandb/AI-Athena-Lab/AKLO-lifelong-online-learning/runs/2yu433zp) | 7.82 | 7.82 | 4000 |
+| syn3 | TransOL | [5.35](https://forge.coreweave.com/wandb/AI-Athena-Lab/AKLO-lifelong-online-learning/runs/kequ7wxx) | 8.45 | 8.45 | 4000 |
+| syn3 | AKLO | [1.06](https://forge.coreweave.com/wandb/AI-Athena-Lab/AKLO-lifelong-online-learning/runs/fdrsuy1l) | 7.82 | 7.82 | 4000 |
+| syn4 | ITOL | [5.18](https://forge.coreweave.com/wandb/AI-Athena-Lab/AKLO-lifelong-online-learning/runs/w4la5mwa) | 5.31 | 5.31 | 4000 |
+| syn4 | TOL | [5.18](https://forge.coreweave.com/wandb/AI-Athena-Lab/AKLO-lifelong-online-learning/runs/sfl4u8q4) | 5.65 | 5.65 | 4000 |
+| syn4 | UnifSum | [1.40](https://forge.coreweave.com/wandb/AI-Athena-Lab/AKLO-lifelong-online-learning/runs/0r1csbpi) | 5.31 | 5.31 | 4000 |
+| syn4 | TransOL | [3.69](https://forge.coreweave.com/wandb/AI-Athena-Lab/AKLO-lifelong-online-learning/runs/pu5e9vjm) | 5.65 | 5.65 | 4000 |
+| syn4 | AKLO | [1.10](https://forge.coreweave.com/wandb/AI-Athena-Lab/AKLO-lifelong-online-learning/runs/an1jzt1s) | 5.31 | 5.31 | 4000 |
+| london | ITOL | [14.80](https://forge.coreweave.com/wandb/AI-Athena-Lab/AKLO-lifelong-online-learning/runs/cfkiwjl9) | 12.70 | 12.41 | 3069 |
+| london | TOL | [12.61](https://forge.coreweave.com/wandb/AI-Athena-Lab/AKLO-lifelong-online-learning/runs/gcfiz324) | 12.04 | 12.04 | 3069 |
+| london | UnifSum | [15.02](https://forge.coreweave.com/wandb/AI-Athena-Lab/AKLO-lifelong-online-learning/runs/cr4zdqqi) | 12.70 | 12.41 | 3069 |
+| london | TransOL | [13.19](https://forge.coreweave.com/wandb/AI-Athena-Lab/AKLO-lifelong-online-learning/runs/o7zx2jq0) | 12.04 | 12.04 | 3069 |
+| london | AKLO | [11.94](https://forge.coreweave.com/wandb/AI-Athena-Lab/AKLO-lifelong-online-learning/runs/hlw4xa68) | 12.70 | 12.41 | 3069 |
 
 ### Paper vs reproduction
 
-| Dataset | Method | Paper Table 2 | Our final test | Our final train |
-| --- | --- | --- | --- | --- |
-| syn1 | ITOL | 36.36 | 46.75 | 46.58 |
-| syn1 | TOL | 21.54 | 37.15 | 37.30 |
-| syn1 | UnifSum | 49.96 | 49.90 | 49.95 |
-| syn1 | TransOL | 35.99 | 38.38 | 38.60 |
-| syn1 | OTB | 30.24 | 49.75 | 49.84 |
-| syn1 | AKLO | 8.78 | 36.62 | 36.41 |
-| syn2 | ITOL | 33.51 | 50.58 | 50.69 |
-| syn2 | TOL | 33.65 | 50.42 | 50.59 |
-| syn2 | UnifSum | 41.32 | 50.58 | 50.69 |
-| syn2 | TransOL | 32.56 | 50.55 | 50.69 |
-| syn2 | OTB | 35.06 | 50.32 | 50.62 |
-| syn2 | AKLO | 8.34 | 50.35 | 50.60 |
-| landmine | ITOL | 14.00 | 37.59 | 36.98 |
-| landmine | TOL | 11.59 | 29.89 | 30.46 |
-| landmine | UnifSum | 6.86 | 55.17 | 52.67 |
-| landmine | TransOL | 8.08 | 26.32 | 26.15 |
-| landmine | OTB | 11.09 | 33.33 | 30.57 |
-| landmine | AKLO | 6.78 | 32.18 | 33.19 |
-| spam | ITOL | 25.23 | 44.83 | 45.46 |
-| spam | TOL | 17.13 | 15.67 | 15.75 |
-| spam | UnifSum | 12.33 | 26.83 | 25.29 |
-| spam | TransOL | 26.43 | 18.00 | 17.79 |
-| spam | OTB | 23.17 | 11.17 | 11.54 |
-| spam | AKLO | 9.97 | 23.17 | 22.04 |
-| syn3 | ITOL | 14.53 | 12.65 | 12.66 |
-| syn3 | TOL | 7.62 | 15.76 | 15.77 |
-| syn3 | UnifSum | 27.60 | 1.49 | 1.50 |
-| syn3 | TransOL | 61.54 | 1.69 | 1.70 |
-| syn3 | AKLO | 3.58 | 3.80 | 3.80 |
-| syn4 | ITOL | 8.05 | 10.04 | 10.02 |
-| syn4 | TOL | 9.82 | 11.25 | 11.23 |
-| syn4 | UnifSum | 51.36 | 1.23 | 1.23 |
-| syn4 | TransOL | 54.57 | 1.64 | 1.63 |
-| syn4 | AKLO | 2.34 | 1.54 | 1.53 |
-| london | ITOL | 20.80 | 15.73 | 16.09 |
-| london | TOL | 20.87 | 15.01 | 15.37 |
-| london | UnifSum | 10.42 | 14.71 | 15.06 |
-| london | TransOL | 79.58 | 15.17 | 15.53 |
-| london | AKLO | 9.57 | 12.35 | 12.64 |
+| Dataset | Method | Paper Table 2 | Our E3 probe |
+| --- | --- | --- | --- |
+| syn1 | ITOL | 36.36 | 33.53 |
+| syn1 | TOL | 21.54 | 20.07 |
+| syn1 | UnifSum | 49.96 | 33.53 |
+| syn1 | TransOL | 35.99 | 20.07 |
+| syn1 | OTB | 30.24 | 14.30 |
+| syn1 | AKLO | 8.78 | 33.53 |
+| syn2 | ITOL | 33.51 | 34.17 |
+| syn2 | TOL | 33.65 | 32.65 |
+| syn2 | UnifSum | 41.32 | 34.17 |
+| syn2 | TransOL | 32.56 | 32.65 |
+| syn2 | OTB | 35.06 | 33.65 |
+| syn2 | AKLO | 8.34 | 34.17 |
+| landmine | ITOL | 14.00 | 34.48 |
+| landmine | TOL | 11.59 | 32.30 |
+| landmine | UnifSum | 6.86 | 34.48 |
+| landmine | TransOL | 8.08 | 32.30 |
+| landmine | OTB | 11.09 | 28.51 |
+| landmine | AKLO | 6.78 | 34.48 |
+| spam | ITOL | 25.23 | 16.67 |
+| spam | TOL | 17.13 | 13.17 |
+| spam | UnifSum | 12.33 | 16.67 |
+| spam | TransOL | 26.43 | 13.17 |
+| spam | OTB | 23.17 | 10.67 |
+| spam | AKLO | 9.97 | 16.67 |
+| syn3 | ITOL | 14.53 | 7.82 |
+| syn3 | TOL | 7.62 | 8.45 |
+| syn3 | UnifSum | 27.60 | 7.82 |
+| syn3 | TransOL | 61.54 | 8.45 |
+| syn3 | AKLO | 3.58 | 7.82 |
+| syn4 | ITOL | 8.05 | 5.31 |
+| syn4 | TOL | 9.82 | 5.65 |
+| syn4 | UnifSum | 51.36 | 5.31 |
+| syn4 | TransOL | 54.57 | 5.65 |
+| syn4 | AKLO | 2.34 | 5.31 |
+| london | ITOL | 20.80 | 12.70 |
+| london | TOL | 20.87 | 12.04 |
+| london | UnifSum | 10.42 | 12.70 |
+| london | TransOL | 79.58 | 12.04 |
+| london | AKLO | 9.57 | 12.70 |
 
-The paper's Table 2 is lower than its Table 1, which is consistent with
-re-feeding the training samples after training. We keep a held-out
-split and report both readings; see `docs/experiment_protocol.md`.
+E3 follows the revised protocol: after training all tasks, 20% of each
+task's training samples are drawn without replacement and fed to the
+task-specific predictor saved at the end of that task. The probe ACE is
+the task-averaged error on those samples. This is not the same protocol
+as the paper's Table 2, which feeds a test set of previous tasks to the
+final model; the comparison is therefore qualitative. See
+`docs/experiment_protocol.md`.
+
+Interpretation caveat: AKLO, ITOL and Unif_Sum share the same per-task
+online update, so their frozen `f_t` and probe ACE coincide. E3 measures
+how well each task's own predictor fits its training distribution, not
+how much knowledge is retained across tasks; cross-task retention is
+visible in the prequential ACE and in the E1 comparison.
 
 ## E4: classification sensitivity (paper Figure 4)
 
@@ -170,68 +180,69 @@ split and report both readings; see `docs/experiment_protocol.md`.
 
 | eta | ACE (%) | W&B |
 | --- | --- | --- |
-| 0.0001 | 36.59 | [run](https://forge.coreweave.com/wandb/AI-Athena-Lab/AKLO-lifelong-online-learning/runs/aormk6c3) |
-| 0.001 | 35.24 | [run](https://forge.coreweave.com/wandb/AI-Athena-Lab/AKLO-lifelong-online-learning/runs/nz5vwsur) |
-| 0.01 | 25.81 | [run](https://forge.coreweave.com/wandb/AI-Athena-Lab/AKLO-lifelong-online-learning/runs/0haahxoi) |
-| 1 | 11.95 | [run](https://forge.coreweave.com/wandb/AI-Athena-Lab/AKLO-lifelong-online-learning/runs/biy4mbex) |
-| 10 | 14.47 | [run](https://forge.coreweave.com/wandb/AI-Athena-Lab/AKLO-lifelong-online-learning/runs/kgvg58jk) |
+| 0 | 54.34 | [run](https://forge.coreweave.com/wandb/AI-Athena-Lab/AKLO-lifelong-online-learning/runs/0qljc1so) |
+| 0.0001 | 36.59 | [run](https://forge.coreweave.com/wandb/AI-Athena-Lab/AKLO-lifelong-online-learning/runs/xmgo3mlf) |
+| 0.001 | 35.24 | [run](https://forge.coreweave.com/wandb/AI-Athena-Lab/AKLO-lifelong-online-learning/runs/ubba0wm0) |
+| 0.01 | 25.81 | [run](https://forge.coreweave.com/wandb/AI-Athena-Lab/AKLO-lifelong-online-learning/runs/b5tdy54j) |
+| 1 | 11.95 | [run](https://forge.coreweave.com/wandb/AI-Athena-Lab/AKLO-lifelong-online-learning/runs/05wz330a) |
+| 10 | 14.47 | [run](https://forge.coreweave.com/wandb/AI-Athena-Lab/AKLO-lifelong-online-learning/runs/xfe4h1mn) |
 
 ### lambda
 
 | lambda | ACE (%) | W&B |
 | --- | --- | --- |
-| 0 | 13.04 | [run](https://forge.coreweave.com/wandb/AI-Athena-Lab/AKLO-lifelong-online-learning/runs/utl6r3ax) |
-| 0.0001 | 12.90 | [run](https://forge.coreweave.com/wandb/AI-Athena-Lab/AKLO-lifelong-online-learning/runs/h35rzb8j) |
-| 0.001 | 11.95 | [run](https://forge.coreweave.com/wandb/AI-Athena-Lab/AKLO-lifelong-online-learning/runs/y8eazczk) |
-| 0.01 | 14.56 | [run](https://forge.coreweave.com/wandb/AI-Athena-Lab/AKLO-lifelong-online-learning/runs/yi4r4z7g) |
-| 0.05 | 24.26 | [run](https://forge.coreweave.com/wandb/AI-Athena-Lab/AKLO-lifelong-online-learning/runs/3ezurrh0) |
-| 0.1 | 34.08 | [run](https://forge.coreweave.com/wandb/AI-Athena-Lab/AKLO-lifelong-online-learning/runs/pfxum4mn) |
+| 0 | 13.04 | [run](https://forge.coreweave.com/wandb/AI-Athena-Lab/AKLO-lifelong-online-learning/runs/6wnfn1we) |
+| 0.0001 | 12.90 | [run](https://forge.coreweave.com/wandb/AI-Athena-Lab/AKLO-lifelong-online-learning/runs/0tea43mo) |
+| 0.001 | 11.95 | [run](https://forge.coreweave.com/wandb/AI-Athena-Lab/AKLO-lifelong-online-learning/runs/e11wu5nq) |
+| 0.005 | 14.72 | [run](https://forge.coreweave.com/wandb/AI-Athena-Lab/AKLO-lifelong-online-learning/runs/8d459fk9) |
+| 0.01 | 14.56 | [run](https://forge.coreweave.com/wandb/AI-Athena-Lab/AKLO-lifelong-online-learning/runs/lmkeq1e1) |
+| 0.05 | 24.26 | [run](https://forge.coreweave.com/wandb/AI-Athena-Lab/AKLO-lifelong-online-learning/runs/83zj3b3x) |
+| 0.1 | 34.08 | [run](https://forge.coreweave.com/wandb/AI-Athena-Lab/AKLO-lifelong-online-learning/runs/k0uu20ek) |
 
 ### delta_alpha
 
 | delta_alpha | ACE (%) | W&B |
 | --- | --- | --- |
-| 0 | 6.80 | [run](https://forge.coreweave.com/wandb/AI-Athena-Lab/AKLO-lifelong-online-learning/runs/s8hzvn3k) |
-| 0.001 | 11.95 | [run](https://forge.coreweave.com/wandb/AI-Athena-Lab/AKLO-lifelong-online-learning/runs/k313zjjy) |
-| 0.01 | 30.29 | [run](https://forge.coreweave.com/wandb/AI-Athena-Lab/AKLO-lifelong-online-learning/runs/eezj3w3b) |
-| 0.1 | 36.81 | [run](https://forge.coreweave.com/wandb/AI-Athena-Lab/AKLO-lifelong-online-learning/runs/4xr0e220) |
-| 1 | 37.34 | [run](https://forge.coreweave.com/wandb/AI-Athena-Lab/AKLO-lifelong-online-learning/runs/a3riatjv) |
+| 0 | 6.80 | [run](https://forge.coreweave.com/wandb/AI-Athena-Lab/AKLO-lifelong-online-learning/runs/ngcotm23) |
+| 0.001 | 11.95 | [run](https://forge.coreweave.com/wandb/AI-Athena-Lab/AKLO-lifelong-online-learning/runs/zbu2ro7r) |
+| 0.005 | 24.94 | [run](https://forge.coreweave.com/wandb/AI-Athena-Lab/AKLO-lifelong-online-learning/runs/3uf320d4) |
+| 0.01 | 30.29 | [run](https://forge.coreweave.com/wandb/AI-Athena-Lab/AKLO-lifelong-online-learning/runs/tg7hdhrh) |
+| 1 | 37.34 | [run](https://forge.coreweave.com/wandb/AI-Athena-Lab/AKLO-lifelong-online-learning/runs/akmzi67i) |
 
 ## E5: regression sensitivity (paper Figure 5)
 
 ### eta
 
-| eta | ACE (%) | W&B |
+| eta | ACE | W&B |
 | --- | --- | --- |
-| 0 | 1.11 | [run](https://forge.coreweave.com/wandb/AI-Athena-Lab/AKLO-lifelong-online-learning/runs/exdxb4k4) |
-| 0.0001 | 0.99 | [run](https://forge.coreweave.com/wandb/AI-Athena-Lab/AKLO-lifelong-online-learning/runs/aa7tlol5) |
-| 0.0005 | 0.96 | [run](https://forge.coreweave.com/wandb/AI-Athena-Lab/AKLO-lifelong-online-learning/runs/50w6poy6) |
-| 0.005 | 0.80 | [run](https://forge.coreweave.com/wandb/AI-Athena-Lab/AKLO-lifelong-online-learning/runs/h42pjuv6) |
-| 0.05 | 1.06 | [run](https://forge.coreweave.com/wandb/AI-Athena-Lab/AKLO-lifelong-online-learning/runs/y5e9uqbh) |
-| 0.25 | 4.65 | [run](https://forge.coreweave.com/wandb/AI-Athena-Lab/AKLO-lifelong-online-learning/runs/j5jvxnyf) |
-| 0.5 | 19.71 | [run](https://forge.coreweave.com/wandb/AI-Athena-Lab/AKLO-lifelong-online-learning/runs/l0o6lfms) |
+| 0 | 1.11 | [run](https://forge.coreweave.com/wandb/AI-Athena-Lab/AKLO-lifelong-online-learning/runs/iz0h9shf) |
+| 0.0001 | 0.99 | [run](https://forge.coreweave.com/wandb/AI-Athena-Lab/AKLO-lifelong-online-learning/runs/viwvzxke) |
+| 0.0005 | 0.96 | [run](https://forge.coreweave.com/wandb/AI-Athena-Lab/AKLO-lifelong-online-learning/runs/0rtbflyb) |
+| 0.05 | 1.06 | [run](https://forge.coreweave.com/wandb/AI-Athena-Lab/AKLO-lifelong-online-learning/runs/0l3zxwts) |
+| 0.25 | 4.65 | [run](https://forge.coreweave.com/wandb/AI-Athena-Lab/AKLO-lifelong-online-learning/runs/wpheyypk) |
+| 0.5 | 19.71 | [run](https://forge.coreweave.com/wandb/AI-Athena-Lab/AKLO-lifelong-online-learning/runs/urmcie4j) |
 
 ### lambda
 
-| lambda | ACE (%) | W&B |
+| lambda | ACE | W&B |
 | --- | --- | --- |
-| 0 | 0.85 | [run](https://forge.coreweave.com/wandb/AI-Athena-Lab/AKLO-lifelong-online-learning/runs/hgg4l0cm) |
-| 0.25 | 1.06 | [run](https://forge.coreweave.com/wandb/AI-Athena-Lab/AKLO-lifelong-online-learning/runs/id7y2u5c) |
-| 0.625 | 1.27 | [run](https://forge.coreweave.com/wandb/AI-Athena-Lab/AKLO-lifelong-online-learning/runs/un4yrdma) |
-| 0.75 | 1.27 | [run](https://forge.coreweave.com/wandb/AI-Athena-Lab/AKLO-lifelong-online-learning/runs/v583d33u) |
-| 0.875 | 1.32 | [run](https://forge.coreweave.com/wandb/AI-Athena-Lab/AKLO-lifelong-online-learning/runs/4pxyy5m6) |
-| 1 | 1.35 | [run](https://forge.coreweave.com/wandb/AI-Athena-Lab/AKLO-lifelong-online-learning/runs/lyffzi8w) |
+| 0 | 0.85 | [run](https://forge.coreweave.com/wandb/AI-Athena-Lab/AKLO-lifelong-online-learning/runs/egwxjfgi) |
+| 0.25 | 1.06 | [run](https://forge.coreweave.com/wandb/AI-Athena-Lab/AKLO-lifelong-online-learning/runs/yf76xydl) |
+| 0.625 | 1.27 | [run](https://forge.coreweave.com/wandb/AI-Athena-Lab/AKLO-lifelong-online-learning/runs/sxehpu6j) |
+| 0.75 | 1.27 | [run](https://forge.coreweave.com/wandb/AI-Athena-Lab/AKLO-lifelong-online-learning/runs/57y2ntf6) |
+| 0.875 | 1.32 | [run](https://forge.coreweave.com/wandb/AI-Athena-Lab/AKLO-lifelong-online-learning/runs/xk9nu8md) |
+| 1 | 1.35 | [run](https://forge.coreweave.com/wandb/AI-Athena-Lab/AKLO-lifelong-online-learning/runs/h3b7z981) |
 
 ### delta_alpha
 
-| delta_alpha | ACE (%) | W&B |
+| delta_alpha | ACE | W&B |
 | --- | --- | --- |
-| 0 | 0.93 | [run](https://forge.coreweave.com/wandb/AI-Athena-Lab/AKLO-lifelong-online-learning/runs/qkv89jpw) |
-| 0.001 | 1.06 | [run](https://forge.coreweave.com/wandb/AI-Athena-Lab/AKLO-lifelong-online-learning/runs/1pcbevjs) |
-| 0.005 | 2.31 | [run](https://forge.coreweave.com/wandb/AI-Athena-Lab/AKLO-lifelong-online-learning/runs/s2fqivbl) |
-| 0.01 | 4.14 | [run](https://forge.coreweave.com/wandb/AI-Athena-Lab/AKLO-lifelong-online-learning/runs/7v04ibuy) |
-| 0.025 | 6.42 | [run](https://forge.coreweave.com/wandb/AI-Athena-Lab/AKLO-lifelong-online-learning/runs/63jgdmsp) |
-| 1 | 7.95 | [run](https://forge.coreweave.com/wandb/AI-Athena-Lab/AKLO-lifelong-online-learning/runs/u82c2ays) |
+| 0 | 0.93 | [run](https://forge.coreweave.com/wandb/AI-Athena-Lab/AKLO-lifelong-online-learning/runs/yv5bi7m4) |
+| 0.001 | 1.06 | [run](https://forge.coreweave.com/wandb/AI-Athena-Lab/AKLO-lifelong-online-learning/runs/chenszh2) |
+| 0.005 | 2.31 | [run](https://forge.coreweave.com/wandb/AI-Athena-Lab/AKLO-lifelong-online-learning/runs/djpyjqky) |
+| 0.01 | 4.14 | [run](https://forge.coreweave.com/wandb/AI-Athena-Lab/AKLO-lifelong-online-learning/runs/3dcjk1io) |
+| 0.025 | 6.42 | [run](https://forge.coreweave.com/wandb/AI-Athena-Lab/AKLO-lifelong-online-learning/runs/xw2i8j8m) |
+| 1 | 7.95 | [run](https://forge.coreweave.com/wandb/AI-Athena-Lab/AKLO-lifelong-online-learning/runs/1tr04ref) |
 
 ## E6: AKLOMS tau sensitivity (paper Table 3)
 

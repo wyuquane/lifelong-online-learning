@@ -41,7 +41,7 @@ python scripts/run.py --experiment e1_main
 python scripts/run.py --experiment e1_main --dataset syn1 --method aklo
 
 # The full matrix
-python scripts/run_matrix.py --experiments e1_main,e2_small_m,e3_forgetting,e4_sensitivity_cls,e5_sensitivity_reg,e6_akloms_tau,e7_akloms_models,e8_runtime
+python scripts/run_matrix.py --experiments e1_main,e2_small_m,e3_task_test,e4_sensitivity_cls,e5_sensitivity_reg,e6_akloms_tau,e7_akloms_models,e8_runtime
 
 # Smoke test, no W&B
 python scripts/run_matrix.py --smoke --no-wandb --limit-per-experiment 2
@@ -66,7 +66,7 @@ Per-task metrics (step = task index):
 * `task/n_samples`
 * `state/*` (`alpha`, `epsilon`, `kb_size`, `cover_size`, `selected_ratio`,
   `w_norm`, `beta_entropy`, `beta_max`, `n_updates`, ...)
-* `probe/*` for E3 (`ace`, `total_error`, `n_samples`)
+* `test/*` for E3 (`ace`, `total_error`, `n_samples`)
 
 Sample-level metrics are logged after the run, using the global sample index:
 
@@ -74,9 +74,9 @@ Sample-level metrics are logged after the run, using the global sample index:
 * `sample/task`
 
 Summary fields include `final_cumulative_ace`, `pooled_ace`,
-`final_task_ace`, timing, final model state, E3 probe metrics
-(`probe_ace_task_mean`, `probe_ace_pooled`, `probe_n_tasks`,
-`probe_n_samples`), and `wandb_url`.
+`final_task_ace`, timing, final model state, E3 per-task test metrics
+(`test_ace_task_mean`, `test_ace_pooled`, `test_n_tasks`,
+`test_n_samples`), and `wandb_url`.
 Per-task values are logged as history metrics; no tables or model checkpoints
 are logged, because W&B table logging creates artifacts and this project must
 not contain artifacts.

@@ -52,7 +52,6 @@ class RunSpec:
     model_overrides: dict[str, Any] = field(default_factory=dict)
     test_fraction: float = 0.0
     evaluate_forgetting: bool = False
-    probe_fraction: float = 0.0
     log_selected_models: bool = False
     notes: dict[str, Any] = field(default_factory=dict)
 
@@ -68,7 +67,7 @@ class TaskMetrics:
     time_seconds: float
     state: dict[str, Any]
     forgetting: dict[str, float] | None = None
-    probe: dict[str, float] | None = None
+    test: dict[str, float] | None = None
 
 
 @dataclass
@@ -174,6 +173,34 @@ def evaluate_tasks(
     }
 
 
+def evaluate_task_test(
+    model: Any,
+    task: TaskData,
+    task_type: str,
+) -> dict[str, float]:
+    """Evaluate the current predictor on one task's held-out test set.
+
+    The caller invokes this immediately after ``model.end_task()``.  For AKLO
+    this means the full predictor ``alpha * meta + (1 - alpha) * current`` is
+    used, not just the snapshot stored in the knowledge base.  The same rule
+    applies to every method: its ``predict`` method is the predictor that was
+    active during the task, after the task's final update.
+    """
+    if task.X_test is None or task.y_test is None:
+        return {}
+    tracker = ACETracker(task_type)
+    for index in range(len(task.y_test)):
+        tracker.update(
+            float(task.y_test[index]),
+            model.predict(_row(task.X_test, index)),
+        )
+    return {
+        "ace": float(tracker.value),
+        "total_error": float(tracker.total),
+        "n_samples": int(tracker.n),
+    }
+
+
 def evaluate_train_tasks(
     model: Any,
     tasks: list[TaskData],
@@ -215,7 +242,6 @@ def run_stream(
     seed: int,
     model_overrides: dict[str, Any] | None = None,
     evaluate_forgetting: bool = False,
-    probe_fraction: float = 0.0,
     log_every: int = 10,
     logger: WandbLogger | None = None,
     log_selected_models: bool = False,
@@ -243,27 +269,6 @@ def run_stream(
     global_sample = 0
     train_seconds = 0.0
     run_start = time.perf_counter()
-
-    # E3 training-sample probe.  The indices are drawn once, independently of
-    # the method, so every method sees exactly the same held-in sample.  The
-    # probe is evaluated immediately after each task's predictor is frozen;
-    # that is equivalent to evaluating the saved task predictors after the
-    # full run and avoids storing 200 copies of large models.
-    probe_indices: list[np.ndarray] = []
-    if probe_fraction > 0.0:
-        probe_rng = np.random.default_rng(seed + 7919)
-        for task in stream.tasks:
-            n_probe = int(round(task.n_train * float(probe_fraction)))
-            n_probe = min(task.n_train, max(1, n_probe))
-            probe_indices.append(
-                np.sort(
-                    probe_rng.choice(task.n_train, size=n_probe, replace=False)
-                )
-            )
-    else:
-        probe_indices = [
-            np.zeros(0, dtype=np.int64) for _ in stream.tasks
-        ]
 
     for task_index, task in enumerate(stream.tasks):
         model.start_task(
@@ -310,21 +315,12 @@ def run_stream(
                 include_current=task.task_id,
             )
 
-        probe = None
-        if probe_indices[task_index].size:
-            predictor = model.task_predictor()
-            probe_tracker = ACETracker(stream.task_type)
-            for probe_index in probe_indices[task_index]:
-                row = int(probe_index)
-                probe_tracker.update(
-                    float(task.y_train[row]),
-                    predictor.predict(_row(task.X_train, row)),
-                )
-            probe = {
-                "ace": float(probe_tracker.value),
-                "total_error": float(probe_tracker.total),
-                "n_samples": int(probe_tracker.n),
-            }
+        # Evaluate the task's own held-out test set with the predictor state
+        # immediately after end_task().  This is the E3 Table 2 metric.  The
+        # evaluation is done task by task, which is mathematically equivalent
+        # to saving every task predictor and evaluating all of them after the
+        # full stream, without keeping hundreds of model copies in memory.
+        test = evaluate_task_test(model, task, stream.task_type) or None
 
         metrics = TaskMetrics(
             task_index=task_index,
@@ -336,7 +332,7 @@ def run_stream(
             time_seconds=float(task_time),
             state=state,
             forgetting=forgetting,
-            probe=probe,
+            test=test,
         )
         task_metrics.append(metrics)
         if task_callback is not None:
@@ -348,10 +344,10 @@ def run_stream(
     final_state = task_metrics[-1].state if task_metrics else {}
     final_forgetting = task_metrics[-1].forgetting if task_metrics else None
 
-    # Aggregate held-out forgetting diagnostics.  ``current_task_mean`` is the
+    # Optional post-task forgetting diagnostics.  ``current_task_mean`` is the
     # test ACE of the task that was just trained, while ``old_tasks_mean`` is
-    # the test ACE on all earlier tasks.  The paper's Table 2 is not explicit
-    # about which of these it reports, so we keep both.
+    # the test ACE on all earlier tasks.  E3 uses the dedicated per-task test
+    # metrics below instead of these diagnostics.
     mean_current_test_ace = None
     mean_old_test_ace = None
     if evaluate_forgetting:
@@ -376,18 +372,18 @@ def run_stream(
     if evaluate_forgetting:
         final_train = evaluate_train_tasks(model, stream.tasks, stream.task_type)
 
-    probe_metrics = [
-        metrics.probe for metrics in task_metrics if metrics.probe is not None
+    test_metrics = [
+        metrics.test for metrics in task_metrics if metrics.test is not None
     ]
-    probe_task_mean = (
-        float(np.mean([item["ace"] for item in probe_metrics]))
-        if probe_metrics
+    test_task_mean = (
+        float(np.mean([item["ace"] for item in test_metrics]))
+        if test_metrics
         else None
     )
-    probe_total_error = sum(item["total_error"] for item in probe_metrics)
-    probe_total_n = sum(item["n_samples"] for item in probe_metrics)
-    probe_pooled = (
-        float(probe_total_error / probe_total_n) if probe_total_n else None
+    test_total_error = sum(item["total_error"] for item in test_metrics)
+    test_total_n = sum(item["n_samples"] for item in test_metrics)
+    test_pooled = (
+        float(test_total_error / test_total_n) if test_total_n else None
     )
 
     summary = {
@@ -419,10 +415,10 @@ def run_stream(
         "mean_old_test_ace": mean_old_test_ace,
         "final_train_ace_task_mean": final_train["task_mean"] if final_train else None,
         "final_train_ace_pooled": final_train["pooled"] if final_train else None,
-        "probe_ace_task_mean": probe_task_mean,
-        "probe_ace_pooled": probe_pooled,
-        "probe_n_tasks": len(probe_metrics),
-        "probe_n_samples": int(probe_total_n),
+        "test_ace_task_mean": test_task_mean,
+        "test_ace_pooled": test_pooled,
+        "test_n_tasks": len(test_metrics),
+        "test_n_samples": int(test_total_n),
     }
 
     selected_models = None
@@ -469,9 +465,9 @@ def _task_log_payload(metrics: TaskMetrics) -> dict[str, Any]:
     if metrics.forgetting is not None:
         for key, value in metrics.forgetting.items():
             payload[f"forgetting/{key}"] = value
-    if metrics.probe is not None:
-        for key, value in metrics.probe.items():
-            payload[f"probe/{key}"] = value
+    if metrics.test is not None:
+        for key, value in metrics.test.items():
+            payload[f"test/{key}"] = value
     return to_jsonable(payload)
 
 
@@ -548,7 +544,6 @@ def execute_run(
             "model_overrides": spec.model_overrides,
             "test_fraction": spec.test_fraction,
             "evaluate_forgetting": spec.evaluate_forgetting,
-            "probe_fraction": spec.probe_fraction,
             "smoke": smoke,
             "base": base,
         },
@@ -559,6 +554,7 @@ def execute_run(
     )
     logger.init()
     logger.define_metric("task/*", "task")
+    logger.define_metric("test/*", "task")
     logger.define_metric("sample/*", "sample")
 
     task_metrics, sample_log, summary, selected_models, all_models = run_stream(
@@ -568,7 +564,6 @@ def execute_run(
         spec.seed,
         model_overrides=spec.model_overrides,
         evaluate_forgetting=spec.evaluate_forgetting,
-        probe_fraction=spec.probe_fraction,
         log_every=int(base.get("runtime", {}).get("log_every", 10)),
         logger=logger,
         log_selected_models=spec.log_selected_models,
@@ -600,7 +595,6 @@ def execute_run(
                 "model_overrides": spec.model_overrides,
                 "test_fraction": spec.test_fraction,
                 "evaluate_forgetting": spec.evaluate_forgetting,
-                "probe_fraction": spec.probe_fraction,
                 "smoke": smoke,
                 "notes": spec.notes,
             }
@@ -659,7 +653,7 @@ def save_result(result: RunResult, results_dir: Path) -> Path:
                 "time_seconds": metrics.time_seconds,
                 "state": metrics.state,
                 "forgetting": metrics.forgetting,
-                "probe": metrics.probe,
+                "test": metrics.test,
             }
             for metrics in result.tasks
         ],

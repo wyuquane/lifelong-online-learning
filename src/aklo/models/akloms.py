@@ -184,9 +184,3 @@ class AKLOMS(AKLO):
 
     def selected_models(self) -> list[LinearSnapshot]:
         return self._cover_snapshots()
-
-    def task_predictor(self) -> LinearSnapshot:
-        """Task-specific predictor ``f_t`` saved at the end of task ``t``."""
-        if not self.knowledge_base:
-            raise RuntimeError("No task predictor is available")
-        return self.knowledge_base[-1]

@@ -59,38 +59,6 @@ class _Base:
     def selected_models(self) -> list[LinearSnapshot]:
         return []
 
-    def task_predictor(self):
-        """Predictor associated with the task that just ended.
-
-        For the single-model baselines this is the snapshot saved by
-        ``end_task``.  OTB overrides this with its weighted ensemble.
-        """
-        snapshots = getattr(self, "snapshots", None)
-        if snapshots:
-            return snapshots[-1]
-        current = getattr(self, "current", None)
-        if current is not None:
-            return current
-        raise RuntimeError("No task predictor is available")
-
-
-class _EnsemblePredictor:
-    """Read-only weighted ensemble used by the E3 training-sample probe."""
-
-    def __init__(
-        self,
-        learners: list[OnlineLinearModel],
-        weights: np.ndarray,
-    ) -> None:
-        self.learners = list(learners)
-        self.weights = np.asarray(weights, dtype=np.float64).copy()
-
-    def predict(self, x: Any) -> float:
-        predictions = np.asarray(
-            [learner.predict(x) for learner in self.learners]
-        )
-        return float(np.dot(self.weights, predictions))
-
 
 class ITOL(_Base):
     """Independent task online learning."""
@@ -212,13 +180,6 @@ class UnifSum(_Base):
     def selected_models(self) -> list[LinearSnapshot]:
         return list(self.snapshots)
 
-    def task_predictor(self):
-        # The E3 probe uses the task-specific current predictor, not the
-        # uniform average of all previous predictors used during training.
-        if not self.snapshots:
-            raise RuntimeError("No task predictor is available")
-        return self.snapshots[-1]
-
 
 class TranOL(_Base):
     """Online transfer learning from the previous task.
@@ -276,13 +237,6 @@ class TranOL(_Base):
 
     def selected_models(self) -> list[LinearSnapshot]:
         return list(self.snapshots)
-
-    def task_predictor(self):
-        # The E3 probe uses the task-specific target predictor.  The source
-        # predictor belongs to the previous task, so it is not included.
-        if not self.snapshots:
-            raise RuntimeError("No task predictor is available")
-        return self.snapshots[-1]
 
 
 class OTB(_Base):
@@ -366,10 +320,3 @@ class OTB(_Base):
 
     def selected_models(self) -> list[LinearSnapshot]:
         return list(self.snapshots)
-
-    def task_predictor(self):
-        # All OTB learners were trained on the task that just ended; the
-        # weighted ensemble is therefore that task's predictor.
-        if not self.learners:
-            raise RuntimeError("No task predictor is available")
-        return _EnsemblePredictor(self.learners, self.weights)

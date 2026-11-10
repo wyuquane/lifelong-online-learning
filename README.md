@@ -33,7 +33,7 @@ python scripts/run.py --experiment e1_main --smoke --no-wandb --limit 2
 python -m pytest -q
 
 # Full matrix with W&B tracking
-python scripts/run_matrix.py --experiments e1_main,e2_small_m,e3_forgetting,e4_sensitivity_cls,e5_sensitivity_reg,e6_akloms_tau,e7_akloms_models,e8_runtime
+python scripts/run_matrix.py --experiments e1_main,e2_small_m,e3_task_test,e4_sensitivity_cls,e5_sensitivity_reg,e6_akloms_tau,e7_akloms_models,e8_runtime
 
 # Build the Markdown report and figures from local JSON
 python scripts/make_report.py
@@ -50,7 +50,7 @@ the local files.
 | --- | --- | --- | --- | --- |
 | E1 | Table 1: main comparison | [`e1_main.yaml`](configs/experiments/e1_main.yaml) | `python scripts/run.py --experiment e1_main` | [group](https://forge.coreweave.com/wandb/AI-Athena-Lab/AKLO-lifelong-online-learning/groups/e1_main) |
 | E2 | Figure 3: effect of `m_t` | [`e2_small_m.yaml`](configs/experiments/e2_small_m.yaml) | `python scripts/run.py --experiment e2_small_m` | [group](https://forge.coreweave.com/wandb/AI-Athena-Lab/AKLO-lifelong-online-learning/groups/e2_small_m) |
-| E3 | Table 2: task-specific training-sample probe | [`e3_forgetting.yaml`](configs/experiments/e3_forgetting.yaml) | `python scripts/run.py --experiment e3_forgetting` | [group](https://forge.coreweave.com/wandb/AI-Athena-Lab/AKLO-lifelong-online-learning/groups/e3_forgetting) |
+| E3 | Table 2: per-task held-out test ACE | [`e3_task_test.yaml`](configs/experiments/e3_task_test.yaml) | `python scripts/run.py --experiment e3_task_test` | [group](https://forge.coreweave.com/wandb/AI-Athena-Lab/AKLO-lifelong-online-learning/groups/e3_task_test) |
 | E4 | Figure 4: classification sensitivity | [`e4_sensitivity_cls.yaml`](configs/experiments/e4_sensitivity_cls.yaml) | `python scripts/run.py --experiment e4_sensitivity_cls` | [group](https://forge.coreweave.com/wandb/AI-Athena-Lab/AKLO-lifelong-online-learning/groups/e4_sensitivity_cls) |
 | E5 | Figure 5: regression sensitivity | [`e5_sensitivity_reg.yaml`](configs/experiments/e5_sensitivity_reg.yaml) | `python scripts/run.py --experiment e5_sensitivity_reg` | [group](https://forge.coreweave.com/wandb/AI-Athena-Lab/AKLO-lifelong-online-learning/groups/e5_sensitivity_reg) |
 | E6 | Table 3: AKLOMS `tau` | [`e6_akloms_tau.yaml`](configs/experiments/e6_akloms_tau.yaml) | `python scripts/run.py --experiment e6_akloms_tau` | [group](https://forge.coreweave.com/wandb/AI-Athena-Lab/AKLO-lifelong-online-learning/groups/e6_akloms_tau) |
@@ -122,32 +122,38 @@ below.
 
 See [`docs/paper_decisions.md`](docs/paper_decisions.md) for the complete list.
 
-## E3: task-specific training-sample probe
+## E3: per-task held-out test protocol
 
-E3 follows the revised protocol. Every method is trained on the full stream
-(`test_fraction: 0.0`). Before training, 20% of each task's training samples
-are drawn without replacement with `np.random.default_rng(seed + 7919)`; the
-same indices are used for every method. After a task ends, its frozen
-task-specific predictor `f_t` is evaluated on that task's probe. The primary
-metric is the task-averaged probe ACE; the pooled probe ACE and the
-prequential ACE are reported for context. The old current/old/final-test
-forgetting metrics were removed, the old E3 W&B runs were deleted, and E3 was
-rerun for all methods.
+E3 splits each task independently into 80% train / 20% test, with a stratified
+split for classification. Datasets with a fixed E1 training size draw extra
+rows so that the training split keeps exactly the E1 size: syn1-syn4
+125 → 100 train / 25 test, Landmine 188 → 150 / 38, Spam 250 → 200 / 50.
+London has no fixed E1 size, so every school is split 80/20. Training then
+follows E1 exactly. Immediately after `end_task()`, the method's current
+`predict()` state is evaluated on that task's test set. For AKLO this is the
+full `alpha * meta + (1 - alpha) * current` predictor, not the stored
+snapshot; for Unif_Sum the newly appended `f_t` is included. The primary
+metric is the task-averaged test ACE; the pooled test ACE is secondary.
+Classification ACE is multiplied by 100, regression ACE is on the target
+scale, and OTB is undefined for regression. The old training-sample probe and
+its W&B runs were removed.
 
-On `syn1`, AKLO's prequential ACE is 11.95% and its probe ACE is 33.53%.
-ITOL and Unif_Sum have the same probe ACE because all three share the same
-per-task online update; TOL/TransOL reach 20.07% and OTB 14.30%. The protocol
-therefore measures how well each task's own predictor fits its training
-distribution, not cross-task retention. The paper's Table 2 applies the final
-model to previous tasks, so the comparison is qualitative. See
-[`docs/paper_decisions.md`](docs/paper_decisions.md#e3-task-specific-training-sample-probe).
+On `syn1`, AKLO reaches 15.12% test ACE, the best of the six methods (OTB
+16.10, TOL 22.20, ITOL 31.96, TransOL 36.72, Unif_Sum 49.82). On Landmine all
+methods remain high (AKLO 35.03, OTB 34.48), consistent with the E1 deviation
+for that dataset. The paper's Table 2 applies the final model to previous
+tasks, whereas this protocol evaluates each task right after training, so the
+comparison is qualitative. See
+[`docs/experiment_protocol.md`](docs/experiment_protocol.md) and
+[`docs/paper_decisions.md`](docs/paper_decisions.md#e3-per-task-held-out-test-protocol).
 
 ## Other experiments
 
 **E2 (`m_t`).** On `syn1`/AKLO, ACE falls from 22.90% at `m_t=10` to 10.70%
-at `m_t=200` (13.11% at 40, 13.78% at 80, 13.47% at 160, 11.63% at 300). More
-per-task samples help, matching Figure 3's qualitative trend; the curve is
-noisy because each point is a single seed.
+at `m_t=200` (13.11% at 40, 13.78% at 80, 13.47% at 160, 11.58% at 250,
+11.63% at 300). More per-task samples help, matching Figure 3's qualitative
+trend; the curve is noisy because each point is a single seed. The eight
+panels match the paper's eight `m_t` values.
 
 **E4/E5 (hyperparameter sensitivity).** The exact grids from the paper's
 figure legends are used. For classification (`syn1`), the default
@@ -178,8 +184,9 @@ All tracked runs are in the public project
 * **Entity:** `AI-Athena-Lab`
 * **Server:** `https://forge.coreweave.com/wandb/AI-Athena-Lab/AKLO-lifelong-online-learning`
 
-Each run logs its config, per-task ACE, cumulative ACE, model state, E3 probe
-metrics, and sample-level running ACE. No artifacts are uploaded. See
+Each run logs its config, per-task ACE, cumulative ACE, model state, E3
+per-task test metrics, and sample-level running ACE. No artifacts are uploaded.
+See
 [`docs/wandb.md`](docs/wandb.md) for setup, commands, and the run-naming
 convention.
 
@@ -214,7 +221,7 @@ src/aklo/
   runner.py                  # online loop, metrics, JSON/W&B logging
   report.py                  # tables and figures
   theory.py                  # theory instrumentation and analysis
-tests/                       # 75 unit tests
+tests/                       # 77 unit tests
 ```
 
 ## Theory checks

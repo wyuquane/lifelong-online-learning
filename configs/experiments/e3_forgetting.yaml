@@ -1,7 +1,0 @@
-experiment: e3_forgetting
-datasets: [syn1, syn2, landmine, spam, syn3, syn4, london]
-methods: [itol, tol, unif_sum, tranol, otb, aklo]
-seeds: [0]
-test_fraction: 0.0
-evaluate_forgetting: false
-probe_fraction: 0.2

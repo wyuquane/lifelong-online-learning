@@ -51,13 +51,18 @@ def test_e1_specs_skip_unsupported_models() -> None:
     assert "otb" not in regression_methods
 
 
-def test_e3_specs_use_training_sample_probe() -> None:
-    config = load_config(ROOT / "configs" / "experiments" / "e3_forgetting.yaml")
+def test_e3_specs_use_per_task_test_split() -> None:
+    config = load_config(ROOT / "configs" / "experiments" / "e3_task_test.yaml")
     specs = build_specs(config)
     assert len(specs) == 4 * 6 + 3 * 5
-    assert all(spec.probe_fraction == 0.2 for spec in specs)
-    assert all(spec.test_fraction == 0.0 for spec in specs)
+    assert all(spec.test_fraction == 0.2 for spec in specs)
     assert all(not spec.evaluate_forgetting for spec in specs)
+    overrides = {spec.dataset: spec.data_overrides for spec in specs}
+    assert overrides["syn1"] == {"n_samples": 125}
+    assert overrides["syn3"] == {"n_samples": 125}
+    assert overrides["landmine"] == {"n_samples": 188}
+    assert overrides["spam"] == {"n_samples": 250}
+    assert overrides["london"] == {}
 
 
 def test_e4_e5_specs_match_paper_grids() -> None:
@@ -127,7 +132,7 @@ def test_experiment_names() -> None:
     assert names == [
         "e1_main",
         "e2_small_m",
-        "e3_forgetting",
+        "e3_task_test",
         "e4_sensitivity_cls",
         "e5_sensitivity_reg",
         "e6_akloms_tau",

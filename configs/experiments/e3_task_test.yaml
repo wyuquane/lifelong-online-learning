@@ -1,0 +1,22 @@
+experiment: e3_task_test
+datasets: [syn1, syn2, landmine, spam, syn3, syn4, london]
+methods: [itol, tol, unif_sum, tranol, otb, aklo]
+seeds: [0]
+
+# Each task is split independently into 80% train / 20% test.  For the
+# datasets that use a fixed sample count in E1, draw extra samples so that the
+# training split keeps exactly the E1 size:
+#   syn1-syn4: 125 -> 100 train / 25 test
+#   landmine:  188 -> 150 train / 38 test
+#   spam:      250 -> 200 train / 50 test
+# London has no fixed E1 sample count (all available rows per school are used),
+# so it simply takes an 80/20 split of each school.
+test_fraction: 0.2
+data_overrides:
+  syn1: {n_samples: 125}
+  syn2: {n_samples: 125}
+  syn3: {n_samples: 125}
+  syn4: {n_samples: 125}
+  landmine: {n_samples: 188}
+  spam: {n_samples: 250}
+evaluate_forgetting: false

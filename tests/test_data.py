@@ -2,15 +2,18 @@
 
 from __future__ import annotations
 
+from copy import deepcopy
 from pathlib import Path
 
 import numpy as np
 import pytest
 from scipy import sparse
 
+from aklo.config import ROOT, load_config
 from aklo.data import load_dataset
 from aklo.data.stream import prepare_stream
 from aklo.data.synthetic import make_synthetic
+from aklo.experiments import build_specs
 
 
 def test_prepare_stream_is_deterministic() -> None:
@@ -139,3 +142,46 @@ def test_synthetic_loader_uses_config() -> None:
     stream = load_dataset("syn1", config, seed=0)
     assert len(stream) == 5
     assert all(task.n_train == 10 for task in stream.tasks)
+
+
+def test_e3_train_sizes_match_e1() -> None:
+    """E3 draws extra rows, then splits so the training split keeps E1 size."""
+    config = load_config(ROOT / "configs" / "experiments" / "e3_task_test.yaml")
+    specs = build_specs(config)
+    expected = {
+        "syn1": 100,
+        "syn2": 100,
+        "syn3": 100,
+        "syn4": 100,
+        "landmine": 150,
+        "spam": 200,
+    }
+    for dataset, n_train in expected.items():
+        spec = next(
+            item for item in specs if item.dataset == dataset and item.method == "aklo"
+        )
+        data_config = deepcopy(config["datasets"][dataset])
+        data_config.update(spec.data_overrides)
+        data_config["test_fraction"] = spec.test_fraction
+        stream = load_dataset(dataset, data_config, spec.seed, root=ROOT)
+        for task in stream.tasks:
+            assert task.n_train == n_train
+            assert task.X_test is not None and task.y_test is not None
+            total = task.n_train + len(task.y_test)
+            assert abs(len(task.y_test) / total - 0.2) <= 0.01
+
+
+def test_e3_london_split_is_per_school() -> None:
+    config = load_config(ROOT / "configs" / "experiments" / "e3_task_test.yaml")
+    specs = build_specs(config)
+    spec = next(
+        item for item in specs if item.dataset == "london" and item.method == "aklo"
+    )
+    data_config = deepcopy(config["datasets"]["london"])
+    data_config["test_fraction"] = spec.test_fraction
+    stream = load_dataset("london", data_config, spec.seed, root=ROOT)
+    assert len(stream.tasks) == 139
+    for task in stream.tasks:
+        assert task.n_train > 0
+        assert task.X_test is not None and task.y_test is not None
+        assert len(task.y_test) >= 1

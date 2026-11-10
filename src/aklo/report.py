@@ -238,9 +238,13 @@ def load_results(results_dir: str | Path, experiment: str | None = None) -> list
     results = []
     for path in files:
         try:
-            results.append(json.loads(path.read_text(encoding="utf-8")))
+            result = json.loads(path.read_text(encoding="utf-8"))
         except (json.JSONDecodeError, OSError) as error:
             print(f"[report] skipping {path}: {error}")
+            continue
+        if result.get("config", {}).get("smoke"):
+            continue
+        results.append(result)
     return results
 
 

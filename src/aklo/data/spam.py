@@ -24,11 +24,14 @@ def _split_sparse(
         n_test = len(y) - 1
     stratify = y if len(np.unique(y)) > 1 else None
     try:
-        return train_test_split(
+        X_train, X_test, y_train, y_test = train_test_split(
             X, y, test_size=n_test, random_state=seed, stratify=stratify
         )
     except ValueError:
-        return train_test_split(X, y, test_size=n_test, random_state=seed)
+        X_train, X_test, y_train, y_test = train_test_split(
+            X, y, test_size=n_test, random_state=seed
+        )
+    return X_train, y_train, X_test, y_test
 
 
 def load_spam(

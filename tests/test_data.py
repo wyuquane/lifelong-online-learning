@@ -61,6 +61,22 @@ def test_landmine_loader() -> None:
         assert set(np.unique(task.y_train)) <= {-1.0, 1.0}
 
 
+def test_landmine_loader_with_held_out_split() -> None:
+    path = Path("data/landmine-detection.csv")
+    if not path.exists():
+        pytest.skip("landmine data not available")
+    config = {
+        "kind": "landmine",
+        "path": str(path),
+        "n_samples": 150,
+        "test_fraction": 0.2,
+    }
+    stream = load_dataset("landmine", config, seed=0)
+    for task in stream.tasks:
+        assert task.X_train.shape[0] == task.y_train.shape[0] == 120
+        assert task.X_test.shape[0] == task.y_test.shape[0] == 30
+
+
 def test_spam_loader() -> None:
     path = Path("data/spam-detection.npz")
     if not path.exists():
@@ -78,6 +94,25 @@ def test_spam_loader() -> None:
     for task in stream.tasks:
         assert task.n_train == 200
         assert sparse.issparse(task.X_train)
+
+
+def test_spam_loader_with_held_out_split() -> None:
+    path = Path("data/spam-detection.npz")
+    if not path.exists():
+        pytest.skip("spam data not available")
+    config = {
+        "kind": "spam",
+        "path": str(path),
+        "n_samples": 200,
+        "n_users": 15,
+        "test_fraction": 0.2,
+    }
+    stream = load_dataset("spam", config, seed=0)
+    for task in stream.tasks:
+        assert task.X_train.shape[0] == task.y_train.shape[0] == 160
+        assert task.X_test.shape[0] == task.y_test.shape[0] == 40
+        assert sparse.issparse(task.X_train)
+        assert sparse.issparse(task.X_test)
 
 
 def test_london_loader() -> None:

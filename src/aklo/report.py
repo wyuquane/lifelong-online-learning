@@ -457,17 +457,17 @@ def table_e2(results: list[dict[str, Any]]) -> str:
 
 
 def table_e3(results: list[dict[str, Any]]) -> str:
-    """E3 Table 2 layout: task-averaged held-out test ACE per task."""
-    return _method_by_dataset_table(results, "test_ace_task_mean")
+    """E3 Table 2 layout: final-state ACE on all task test sets."""
+    return _method_by_dataset_table(results, "final_test_ace_task_mean")
 
 
 def table_e3_pooled(results: list[dict[str, Any]]) -> str:
-    """Secondary E3 metric: pooled held-out test ACE."""
-    return _method_by_dataset_table(results, "test_ace_pooled")
+    """Secondary E3 metric: pooled final-state test ACE."""
+    return _method_by_dataset_table(results, "final_test_ace_pooled")
 
 
 def table_e3_paper(results: list[dict[str, Any]]) -> str:
-    """Paper Table 2 next to our per-task held-out test ACE."""
+    """Paper Table 2 next to our final-state test ACE."""
     datasets = [name for name in DATASET_ORDER if name in PAPER_TABLE2]
     methods = PAPER_METHODS
     headers = ["Dataset", "Method", "Paper Table 2", "Our test ACE"]
@@ -487,7 +487,11 @@ def table_e3_paper(results: list[dict[str, Any]]) -> str:
                     f"{paper_value:.2f}",
                     _link(
                         _mean_std(
-                            _values(group, "test_ace_task_mean", _ace_scale)
+                            _values(
+                                group,
+                                "final_test_ace_task_mean",
+                                _ace_scale,
+                            )
                         ),
                         _first(group),
                     ),
@@ -1236,36 +1240,39 @@ def build_report(
         "",
         table_e2(load_results(results_dir, "e2_small_m")),
         "",
-        "## E3: per-task held-out test (paper Table 2)",
+        "## E3: catastrophic forgetting (paper Table 2)",
         "",
-        "Each task is split independently into 80% train / 20% test, with the",
-        "split stratified for classification. Datasets with a fixed E1 training",
-        "size draw extra samples so that the training split keeps exactly the E1",
-        "size: syn1-syn4 125 -> 100 train / 25 test, Landmine 188 -> 150 / 38,",
-        "Spam 250 -> 200 / 50. London has no fixed E1 size, so every school is",
-        "split 80/20. Training then follows E1 exactly. Immediately after",
-        "`end_task()`, the method's current `predict()` state is evaluated on that",
-        "task's test set; for AKLO this is the full",
-        "`alpha * meta + (1 - alpha) * current` predictor, not the stored",
-        "snapshot. The primary metric is the task-averaged test ACE; the pooled",
-        "test ACE is secondary. Classification ACE is multiplied by 100;",
-        "regression ACE is on the target scale. OTB is not defined for regression,",
-        "so those cells are empty.",
+        "Training follows E1 exactly. After the last task, the method's final",
+        "predictor is evaluated on the test set of every task `1..T`, matching",
+        "the paper's description: the whole test set constituted of samples from",
+        "previous tasks is fed to the model after training. The synthetic",
+        "datasets use 50 tasks (25 D1 + 25 D2) with 100 training and 100 separate",
+        "test samples per task. Landmine uses 150 training rows per task and all",
+        "remaining rows as test; Spam uses 200 training rows per user and all",
+        "remaining rows as test. London keeps an 80/20 split per school. Each",
+        "experiment is repeated with 10 seeds; the data and split are fixed and",
+        "only the task/example order changes. The primary metric is the",
+        "task-averaged test ACE, with the pooled test ACE as a secondary metric.",
+        "Classification ACE is multiplied by 100; regression ACE is on the target",
+        "scale. OTB is not defined for regression, so those cells are empty.",
         "",
-        table_e3(load_results(results_dir, "e3_task_test")),
+        table_e3(load_results(results_dir, "e3_catastrophic-forgetting")),
         "",
         "### Secondary metric: pooled test ACE",
         "",
-        table_e3_pooled(load_results(results_dir, "e3_task_test")),
+        table_e3_pooled(
+            load_results(results_dir, "e3_catastrophic-forgetting")
+        ),
         "",
         "### Paper vs reproduction",
         "",
-        table_e3_paper(load_results(results_dir, "e3_task_test")),
+        table_e3_paper(
+            load_results(results_dir, "e3_catastrophic-forgetting")
+        ),
         "",
-        "The paper's Table 2 evaluates the final model on test samples from",
-        "previous tasks, while our protocol evaluates each task right after it is",
-        "trained. The two protocols answer related but not identical questions;",
-        "the comparison is qualitative. See `docs/experiment_protocol.md`.",
+        "The paper reports mean ± standard deviation over 10 repetitions. Our",
+        "table uses the same aggregation over seeds 0-9. See",
+        "`docs/experiment_protocol.md` for the exact protocol.",
         "",
         "## E4: classification sensitivity (paper Figure 4)",
         "",

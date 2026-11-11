@@ -155,3 +155,7 @@ class AKLO:
 
     def selected_models(self) -> list[LinearSnapshot]:
         return list(self.snapshots)
+
+    def final_predictor(self, task_index: int) -> "AKLO":
+        """The final dual predictor ``alpha * meta + (1 - alpha) * current``."""
+        return self

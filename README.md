@@ -33,7 +33,7 @@ python scripts/run.py --experiment e1_main --smoke --no-wandb --limit 2
 python -m pytest -q
 
 # Full matrix with W&B tracking
-python scripts/run_matrix.py --experiments e1_main,e2_small_m,e3_task_test,e4_sensitivity_cls,e5_sensitivity_reg,e6_akloms_tau,e7_akloms_models,e8_runtime
+python scripts/run_matrix.py --experiments e1_main,e2_small_m,e3_catastrophic-forgetting,e4_sensitivity_cls,e5_sensitivity_reg,e6_akloms_tau,e7_akloms_models,e8_runtime
 
 # Build the Markdown report and figures from local JSON
 python scripts/make_report.py
@@ -50,7 +50,7 @@ the local files.
 | --- | --- | --- | --- | --- |
 | E1 | Table 1: main comparison | [`e1_main.yaml`](configs/experiments/e1_main.yaml) | `python scripts/run.py --experiment e1_main` | [group](https://forge.coreweave.com/wandb/AI-Athena-Lab/AKLO-lifelong-online-learning/groups/e1_main) |
 | E2 | Figure 3: effect of `m_t` | [`e2_small_m.yaml`](configs/experiments/e2_small_m.yaml) | `python scripts/run.py --experiment e2_small_m` | [group](https://forge.coreweave.com/wandb/AI-Athena-Lab/AKLO-lifelong-online-learning/groups/e2_small_m) |
-| E3 | Table 2: per-task held-out test ACE | [`e3_task_test.yaml`](configs/experiments/e3_task_test.yaml) | `python scripts/run.py --experiment e3_task_test` | [group](https://forge.coreweave.com/wandb/AI-Athena-Lab/AKLO-lifelong-online-learning/groups/e3_task_test) |
+| E3 | Table 2: catastrophic forgetting (final state, 10 seeds) | [`e3_catastrophic-forgetting.yaml`](configs/experiments/e3_catastrophic-forgetting.yaml) | `python scripts/run.py --experiment e3_catastrophic-forgetting` | [group](https://forge.coreweave.com/wandb/AI-Athena-Lab/AKLO-lifelong-online-learning/groups/e3_catastrophic-forgetting) |
 | E4 | Figure 4: classification sensitivity | [`e4_sensitivity_cls.yaml`](configs/experiments/e4_sensitivity_cls.yaml) | `python scripts/run.py --experiment e4_sensitivity_cls` | [group](https://forge.coreweave.com/wandb/AI-Athena-Lab/AKLO-lifelong-online-learning/groups/e4_sensitivity_cls) |
 | E5 | Figure 5: regression sensitivity | [`e5_sensitivity_reg.yaml`](configs/experiments/e5_sensitivity_reg.yaml) | `python scripts/run.py --experiment e5_sensitivity_reg` | [group](https://forge.coreweave.com/wandb/AI-Athena-Lab/AKLO-lifelong-online-learning/groups/e5_sensitivity_reg) |
 | E6 | Table 3: AKLOMS `tau` | [`e6_akloms_tau.yaml`](configs/experiments/e6_akloms_tau.yaml) | `python scripts/run.py --experiment e6_akloms_tau` | [group](https://forge.coreweave.com/wandb/AI-Athena-Lab/AKLO-lifelong-online-learning/groups/e6_akloms_tau) |
@@ -93,13 +93,14 @@ below.
   values are worse than predicting zero (e.g. Unif_Sum 27.69), which is hard
   to reconcile with the stated absolute loss and data scale. This is an
   unresolved inconsistency in the paper, not a bug in the metric.
-* **Repetitions:** the paper repeats each experiment 10 times; the committed
-  results use `seed=0` (one repetition) for compute reasons. The configs
-  accept `seeds: [0, 1, ...]` and will reproduce the repetition protocol when
-  extended.
-* **Synthetic task count:** the text says 50 tasks (25 per distribution), but
-  Figures 3 and 7 use axes up to 200 and 400. We use 200 tasks, following the
-  figures and the user decision.
+* **Repetitions:** the paper repeats each experiment 10 times. E3 uses all ten
+  seeds (`0..9`) and reports mean ± standard deviation. E1/E2/E4-E8 still use
+  `seed=0` for compute reasons; their configs accept `seeds: [0, 1, ...]` and
+  will reproduce the repetition protocol when extended.
+* **Synthetic task count:** E3 follows the text's 50 tasks (25 per
+  distribution). E1/E2/E7 use 200 tasks because Figures 3 and 7 have axes up
+  to 200 and 400; this is a deliberate split between the Table 1/Table 2
+  protocol and the scaling figures.
 * **Meta loss:** the paper's Section 6 says square loss for the meta
   hypothesis, but Algorithm 2, the bounded-loss theory, and the reported
   numbers point to a classification loss. We use hinge for classification and
@@ -122,30 +123,36 @@ below.
 
 See [`docs/paper_decisions.md`](docs/paper_decisions.md) for the complete list.
 
-## E3: per-task held-out test protocol
+## E3: catastrophic forgetting (final-state protocol)
 
-E3 splits each task independently into 80% train / 20% test, with a stratified
-split for classification. Datasets with a fixed E1 training size draw extra
-rows so that the training split keeps exactly the E1 size: syn1-syn4
-125 → 100 train / 25 test, Landmine 188 → 150 / 38, Spam 250 → 200 / 50.
-London has no fixed E1 size, so every school is split 80/20. Training then
-follows E1 exactly. Immediately after `end_task()`, the method's current
-`predict()` state is evaluated on that task's test set. For AKLO this is the
-full `alpha * meta + (1 - alpha) * current` predictor, not the stored
-snapshot; for Unif_Sum the newly appended `f_t` is included. The primary
-metric is the task-averaged test ACE; the pooled test ACE is secondary.
-Classification ACE is multiplied by 100, regression ACE is on the target
-scale, and OTB is undefined for regression. The old training-sample probe and
-its W&B runs were removed.
+E3 follows the paper's Table 2 sentence: train once on the whole stream, then
+feed the test sets of all tasks `1..T` to the final model. The synthetic
+datasets use 50 tasks (25 D1 + 25 D2), 100 training samples and 100 separate
+test samples per task. Landmine uses 150 training rows per task and every
+remaining row as test; Spam uses 200 training rows per user and every remaining
+row as test. London keeps an 80/20 split per school. The experiment is repeated
+with seeds `0..9`; the data and split are fixed by `data_seed=0`, and only the
+task/example order changes, matching the paper's repetition description.
 
-On `syn1`, AKLO reaches 15.12% test ACE, the best of the six methods (OTB
-16.10, TOL 22.20, ITOL 31.96, TransOL 36.72, Unif_Sum 49.82). On Landmine all
-methods remain high (AKLO 35.03, OTB 34.48), consistent with the E1 deviation
-for that dataset. The paper's Table 2 applies the final model to previous
-tasks, whereas this protocol evaluates each task right after training, so the
-comparison is qualitative. See
+The final predictor is method-specific: ITOL uses the task-specific snapshot,
+TOL the final online model, Unif_Sum the average of all task snapshots, TranOL
+the final target model, OTB the final weighted ensemble, and AKLO the full
+`alpha * meta + (1 - alpha) * current` state. The primary metric is the
+task-averaged test ACE (`final_test_ace_task_mean`), with pooled test ACE
+(`final_test_ace_pooled`) as secondary. Classification ACE is multiplied by
+100; regression ACE is on the target scale. OTB is undefined for regression.
+The old per-task E3 protocol and its `e3_task_test` W&B runs were removed; the
+new group is
+[`e3_catastrophic-forgetting`](https://forge.coreweave.com/wandb/AI-Athena-Lab/AKLO-lifelong-online-learning/groups/e3_catastrophic-forgetting).
+
+The paper's Table 2 values are very close to its Table 1 values, which suggests
+the original implementation may have evaluated each task shortly after
+training. Our stricter final-state reading therefore exposes much stronger
+forgetting, especially for AKLO, whose meta-hypothesis is adapted to the final
+task. This is an honest consequence of the chosen protocol; the comparison with
+the paper is qualitative. See
 [`docs/experiment_protocol.md`](docs/experiment_protocol.md) and
-[`docs/paper_decisions.md`](docs/paper_decisions.md#e3-per-task-held-out-test-protocol).
+[`docs/paper_decisions.md`](docs/paper_decisions.md#e3-catastrophic-forgetting-protocol).
 
 ## Other experiments
 
@@ -185,7 +192,8 @@ All tracked runs are in the public project
 * **Server:** `https://forge.coreweave.com/wandb/AI-Athena-Lab/AKLO-lifelong-online-learning`
 
 Each run logs its config, per-task ACE, cumulative ACE, model state, E3
-per-task test metrics, and sample-level running ACE. No artifacts are uploaded.
+per-task diagnostics, the final-state E3 test metrics, and sample-level running
+ACE. No artifacts are uploaded.
 See
 [`docs/wandb.md`](docs/wandb.md) for setup, commands, and the run-naming
 convention.

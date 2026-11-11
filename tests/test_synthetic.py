@@ -80,3 +80,18 @@ def test_held_out_split() -> None:
         assert task.y_test is not None
         assert task.n_train == 40
         assert len(task.y_test) == 10
+
+
+def test_separate_test_block_is_disjoint_and_sized() -> None:
+    stream = make_synthetic(
+        "syn1", n_tasks=2, n_samples=100, seed=0, n_test=100
+    )
+    for task in stream.tasks:
+        assert task.n_train == 100
+        assert task.X_test is not None and task.y_test is not None
+        assert len(task.y_test) == 100
+        # The test rows are the next block of the same sample pool, so they
+        # must not overlap with the training rows.
+        train_rows = {tuple(row) for row in task.X_train}
+        test_rows = {tuple(row) for row in task.X_test}
+        assert train_rows.isdisjoint(test_rows)

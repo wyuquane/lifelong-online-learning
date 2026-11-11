@@ -52,6 +52,8 @@ class RunSpec:
     model_overrides: dict[str, Any] = field(default_factory=dict)
     test_fraction: float = 0.0
     evaluate_forgetting: bool = False
+    evaluate_final_test: bool = False
+    data_seed: int | None = None
     log_selected_models: bool = False
     notes: dict[str, Any] = field(default_factory=dict)
 
@@ -201,6 +203,51 @@ def evaluate_task_test(
     }
 
 
+def evaluate_final_test_sets(
+    model: Any,
+    tasks: list[TaskData],
+    task_type: str,
+    logger: WandbLogger | None = None,
+) -> dict[str, float]:
+    """Evaluate the final state on the test set of every task.
+
+    This is the paper's Table 2 protocol: train once on the whole stream, then
+    feed the model the test samples of all tasks ``1..T`` and report the
+    task-averaged ACE.  The predictor is selected by
+    ``model.final_predictor(task_index)`` so that ITOL can use its task-specific
+    snapshot while the other methods use their final online state.
+    """
+    per_task: list[float] = []
+    total_error = 0.0
+    total_n = 0
+    for task_index, task in enumerate(tasks):
+        if task.X_test is None or task.y_test is None:
+            continue
+        predictor = model.final_predictor(task_index)
+        tracker = ACETracker(task_type)
+        for index in range(len(task.y_test)):
+            tracker.update(
+                float(task.y_test[index]),
+                predictor.predict(_row(task.X_test, index)),
+            )
+        per_task.append(tracker.value)
+        total_error += tracker.total
+        total_n += tracker.n
+        if logger is not None:
+            logger.log(
+                {
+                    "final_test/task": task_index,
+                    "final_test/ace": tracker.value,
+                }
+            )
+    return {
+        "task_mean": float(np.mean(per_task)) if per_task else float("nan"),
+        "pooled": float(total_error / total_n) if total_n else float("nan"),
+        "n_tasks": len(per_task),
+        "n_samples": int(total_n),
+    }
+
+
 def evaluate_train_tasks(
     model: Any,
     tasks: list[TaskData],
@@ -242,6 +289,7 @@ def run_stream(
     seed: int,
     model_overrides: dict[str, Any] | None = None,
     evaluate_forgetting: bool = False,
+    evaluate_final_test: bool = False,
     log_every: int = 10,
     logger: WandbLogger | None = None,
     log_selected_models: bool = False,
@@ -372,6 +420,12 @@ def run_stream(
     if evaluate_forgetting:
         final_train = evaluate_train_tasks(model, stream.tasks, stream.task_type)
 
+    final_test = None
+    if evaluate_final_test:
+        final_test = evaluate_final_test_sets(
+            model, stream.tasks, stream.task_type, logger=logger
+        )
+
     test_metrics = [
         metrics.test for metrics in task_metrics if metrics.test is not None
     ]
@@ -419,6 +473,12 @@ def run_stream(
         "test_ace_pooled": test_pooled,
         "test_n_tasks": len(test_metrics),
         "test_n_samples": int(test_total_n),
+        "final_test_ace_task_mean": final_test["task_mean"]
+        if final_test
+        else None,
+        "final_test_ace_pooled": final_test["pooled"] if final_test else None,
+        "final_test_n_tasks": final_test["n_tasks"] if final_test else 0,
+        "final_test_n_samples": final_test["n_samples"] if final_test else 0,
     }
 
     selected_models = None
@@ -520,7 +580,10 @@ def execute_run(
     data_config.update(spec.data_overrides)
     data_config["test_fraction"] = float(spec.test_fraction)
 
-    stream = load_dataset(spec.dataset, data_config, spec.seed, root=root)
+    # ``data_seed`` keeps the underlying data and train/test split fixed across
+    # repetitions while ``spec.seed`` still controls task/example order.
+    data_seed = spec.seed if spec.data_seed is None else int(spec.data_seed)
+    stream = load_dataset(spec.dataset, data_config, data_seed, root=root)
     stream = prepare_stream(stream, spec.seed)
     if smoke:
         runtime = base.get("runtime", {})
@@ -544,6 +607,8 @@ def execute_run(
             "model_overrides": spec.model_overrides,
             "test_fraction": spec.test_fraction,
             "evaluate_forgetting": spec.evaluate_forgetting,
+            "evaluate_final_test": spec.evaluate_final_test,
+            "data_seed": data_seed,
             "smoke": smoke,
             "base": base,
         },
@@ -555,6 +620,7 @@ def execute_run(
     logger.init()
     logger.define_metric("task/*", "task")
     logger.define_metric("test/*", "task")
+    logger.define_metric("final_test/*", "final_test/task")
     logger.define_metric("sample/*", "sample")
 
     task_metrics, sample_log, summary, selected_models, all_models = run_stream(
@@ -564,6 +630,7 @@ def execute_run(
         spec.seed,
         model_overrides=spec.model_overrides,
         evaluate_forgetting=spec.evaluate_forgetting,
+        evaluate_final_test=spec.evaluate_final_test,
         log_every=int(base.get("runtime", {}).get("log_every", 10)),
         logger=logger,
         log_selected_models=spec.log_selected_models,
@@ -595,6 +662,8 @@ def execute_run(
                 "model_overrides": spec.model_overrides,
                 "test_fraction": spec.test_fraction,
                 "evaluate_forgetting": spec.evaluate_forgetting,
+                "evaluate_final_test": spec.evaluate_final_test,
+                "data_seed": data_seed,
                 "smoke": smoke,
                 "notes": spec.notes,
             }

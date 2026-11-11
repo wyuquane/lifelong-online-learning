@@ -163,7 +163,7 @@ The E4/E5 sweeps use the exact paper figure legends:
 | --- | --- | --- | --- | --- |
 | E1 | Table 1 | `configs/experiments/e1_main.yaml` | `python scripts/run.py --experiment e1_main` | Main comparison on all 7 datasets |
 | E2 | Figure 3 | `configs/experiments/e2_small_m.yaml` | `python scripts/run.py --experiment e2_small_m` | ACE versus `m_t` on `syn1` |
-| E3 | Table 2 | `configs/experiments/e3_task_test.yaml` | `python scripts/run.py --experiment e3_task_test` | Per-task held-out test ACE after training each task |
+| E3 | Table 2 | `configs/experiments/e3_catastrophic-forgetting.yaml` | `python scripts/run.py --experiment e3_catastrophic-forgetting` | Final-state test ACE on the union of all task test sets (10 seeds) |
 | E4 | Figure 4 | `configs/experiments/e4_sensitivity_cls.yaml` | `python scripts/run.py --experiment e4_sensitivity_cls` | Classification sensitivity to `eta`, `lambda`, `delta_alpha` |
 | E5 | Figure 5 | `configs/experiments/e5_sensitivity_reg.yaml` | `python scripts/run.py --experiment e5_sensitivity_reg` | Regression sensitivity to `eta`, `lambda`, `delta_alpha` |
 | E6 | Table 3 | `configs/experiments/e6_akloms_tau.yaml` | `python scripts/run.py --experiment e6_akloms_tau` | AKLOMS ACE versus `tau` |
@@ -171,50 +171,66 @@ The E4/E5 sweeps use the exact paper figure legends:
 | E8 | Figure 8 | `configs/experiments/e8_runtime.yaml` | `python scripts/run.py --experiment e8_runtime` | Runtime versus task count, `m_t`, and `tau` |
 
 E1/E2/E4-E8 use `test_fraction: 0.0`: every task is a pure online stream, as
-in the paper's ACE definition. E3 is the exception: every task is split
-independently into 80% train / 20% test.
+in the paper's ACE definition. E3 is the exception: each task has a separate
+held-out test set, and the final model is evaluated on all of them.
 
 ### E3 protocol
 
-E3 implements the per-task held-out test protocol. Each dataset loader splits
-each task separately, never globally, with a stratified split for
-classification. For datasets with a fixed E1 training size, the E3 config draws
-extra samples so the training split keeps exactly the E1 size:
+E3 implements the paper's final-state reading of Table 2: train once on the
+whole stream, then feed the test sets of every task `1..T` to the final model.
+The datasets and splits are:
 
-| Dataset | E3 rows per task | Train | Test |
+| Dataset | Tasks | Train per task | Test per task |
 | --- | ---: | ---: | ---: |
-| syn1-syn4 | 125 | 100 | 25 |
-| Landmine | 188 | 150 | 38 |
-| Spam | 250 | 200 | 50 |
-| London | all rows per school | 80% | 20% |
+| syn1-syn4 | 50 (25 D1 + 25 D2) | 100 | 100 separate samples |
+| Landmine | 29 | 150 | all remaining rows |
+| Spam | 15 users | 200 | all remaining rows |
+| London | 139 schools | 80% | 20% |
 
-Training then follows E1 exactly: same online loop, same hyperparameters, same
-task and example shuffles for every method. Immediately after `end_task()`, the
-method's current `predict()` state is evaluated on that task's test set. For
-AKLO this is the full `alpha * meta + (1 - alpha) * current` predictor, not the
-stored snapshot. For Unif_Sum the newly appended `f_t` is included. For OTB the
-weighted ensemble is used. The primary metric is `test_ace_task_mean`, the mean
-over tasks of the per-task test ACE; `test_ace_pooled` is secondary and
-prequential ACE is reported for context.
+The synthetic train and test rows are disjoint blocks of the same task pool.
+Landmine and Spam sample the training rows and use every non-training row of
+the task as test. London keeps a per-school 80/20 split. Training then follows
+E1 exactly: same online loop, same hyperparameters, and the same task/example
+shuffles for every method.
 
-The paper's Table 2 instead feeds test samples of previous tasks to the final
-model, so the comparison is qualitative. The old training-sample probe and its
-`probe_*` metrics no longer exist.
+After the last task, each method uses its method-specific final predictor:
+
+* **ITOL**: the task-specific snapshot for the evaluated task.
+* **TOL**: the single final online model.
+* **Unif_Sum**: the uniform average of all task snapshots.
+* **TranOL**: the final target model (without the source blend).
+* **OTB**: the final weighted ensemble.
+* **AKLO**: the full `alpha * meta + (1 - alpha) * current` final state.
+* **AKLOMS**: the final AKLO predictor over the selected knowledge base
+  (AKLOMS is not part of Table 2).
+
+The primary metric is `final_test_ace_task_mean`, the mean over tasks of the
+final-state test ACE. `final_test_ace_pooled` is secondary and prequential ACE
+is reported for context. Classification ACE is multiplied by 100; regression
+ACE is on the target scale. OTB is undefined for regression.
+
+The paper's Table 2 values are close to its Table 1 values, which suggests the
+original implementation may have evaluated each task shortly after training
+rather than only at the end. The final-state protocol requested for this
+reproduction is a stricter catastrophic-forgetting test, so the comparison is
+qualitative. The old per-task E3 protocol and its `e3_task_test` W&B runs were
+removed.
 
 ## 7. Repetitions and seeds
 
 The paper repeats every experiment 10 times with fresh task and example
-shuffles. The configs accept `seeds: [0, 1, ...]`, but the committed results
-use `seed: 0` for all experiments (one repetition), except that E1 was also
-used for smoke testing. Runtime in E8 is measured once on the machine that ran
-the experiment. This is a compute-budget deviation, not a methodological
-choice; adding seeds to a config reproduces the paper's repetition protocol.
+shuffles. E3 uses all ten seeds (`0..9`), with the underlying data and split
+fixed by `data_seed: 0` and only the task/example order changing per seed. The
+other experiments still use `seed: 0` for the committed results because of the
+compute budget; their configs accept `seeds: [0, 1, ...]` and will reproduce
+the paper's repetition protocol when extended. Runtime in E8 is measured once
+on the machine that ran the experiment.
 
 ## 8. Runtime measurement
 
 `train_seconds` wraps only the per-sample `predict` + `update` loop. Data
-loading, model construction, E3 test evaluation, JSON serialization, and W&B
-logging are excluded. `total_seconds` includes all of the run after data
+loading, model construction, E3 final-state evaluation, JSON serialization,
+and W&B logging are excluded. `total_seconds` includes all of the run after data
 loading. E8 reports `train_seconds`.
 
 AKLOMS updates its cover inside the timed loop. The cover check uses an exact

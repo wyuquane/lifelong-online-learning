@@ -132,7 +132,8 @@ test samples per task. Landmine uses 150 training rows per task and every
 remaining row as test; Spam uses 200 training rows per user and every remaining
 row as test. London keeps an 80/20 split per school. The experiment is repeated
 with seeds `0..9`; the data and split are fixed by `data_seed=0`, and only the
-task/example order changes, matching the paper's repetition description.
+task/example order changes, matching the paper's repetition description. The
+matrix contains 390 runs (39 method/dataset combinations per seed).
 
 The final predictor is method-specific: ITOL uses the task-specific snapshot,
 TOL the final online model, Unif_Sum the average of all task snapshots, TranOL
@@ -145,13 +146,39 @@ The old per-task E3 protocol and its `e3_task_test` W&B runs were removed; the
 new group is
 [`e3_catastrophic-forgetting`](https://forge.coreweave.com/wandb/AI-Athena-Lab/AKLO-lifelong-online-learning/groups/e3_catastrophic-forgetting).
 
-The paper's Table 2 values are very close to its Table 1 values, which suggests
-the original implementation may have evaluated each task shortly after
-training. Our stricter final-state reading therefore exposes much stronger
-forgetting, especially for AKLO, whose meta-hypothesis is adapted to the final
-task. This is an honest consequence of the chosen protocol; the comparison with
-the paper is qualitative. See
-[`docs/experiment_protocol.md`](docs/experiment_protocol.md) and
+Task-averaged final-state test ACE (%), mean ± standard deviation over seeds
+0–9. Lower is better; the best method per dataset is bold. The last column is
+the paper's Table 2 AKLO value.
+
+| Dataset | ITOL | TOL | Unif_Sum | TranOL | OTB | AKLO (ours) | AKLO (paper) |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| syn1 | **35.87 ± 2.50** | 38.32 ± 10.02 | 50.01 ± 0.20 | 38.32 ± 10.02 | 37.48 ± 8.62 | 37.73 ± 6.63 | 8.78 |
+| syn2 | **33.91 ± 1.89** | 49.87 ± 0.60 | 49.90 ± 0.49 | 49.87 ± 0.60 | 50.01 ± 0.59 | 49.85 ± 0.26 | 8.34 |
+| Landmine | 37.95 ± 1.43 | 46.79 ± 13.53 | 55.44 ± 2.09 | 46.79 ± 13.53 | 38.14 ± 11.43 | **37.36 ± 15.04** | 6.78 |
+| Spam | 20.00 ± 1.75 | 22.93 ± 7.81 | 20.81 ± 4.85 | 22.93 ± 7.81 | **15.37 ± 4.16** | 22.58 ± 6.81 | 9.97 |
+| syn3 | 6.90 ± 0.66 | 6.76 ± 4.16 | **1.77 ± 0.56** | 6.76 ± 4.16 | – | 2.69 ± 0.81 | 3.58 |
+| syn4 | 4.83 ± 0.36 | 4.28 ± 2.99 | **1.29 ± 0.15** | 4.28 ± 2.99 | – | 1.40 ± 0.15 | 2.34 |
+| London | **12.77 ± 0.03** | 13.86 ± 0.95 | 14.75 ± 0.03 | 13.86 ± 0.95 | – | 13.16 ± 0.71 | 9.57 |
+
+Under this stricter protocol AKLO is best only on Landmine. ITOL wins on
+syn1/syn2 because it keeps a separate model per task, OTB wins on Spam, and
+Unif_Sum wins on the regression datasets. The gap to the paper is largest for
+AKLO (e.g. syn1 37.73 vs 8.78), consistent with the paper's Table 2 values
+being very close to its Table 1 values and therefore likely measured per task
+rather than only at the end. This is an honest consequence of the chosen
+protocol; the comparison with the paper is qualitative.
+
+Two properties of the final-state protocol are worth stating explicitly:
+
+* **TOL and TranOL coincide.** Both perform the same online updates on the
+  final target model, and TranOL's source/target blend affects only its
+  prediction, not the update. Under the "final target model" rule the two rows
+  are therefore identical by construction.
+* **syn2 is adversarial.** Its D2 tasks reuse the D1 marginal but flip the
+  labels, so no single final linear predictor can fit both distributions;
+  every non-ITOL method sits near chance (50%). This is expected, not a bug.
+
+See [`docs/experiment_protocol.md`](docs/experiment_protocol.md) and
 [`docs/paper_decisions.md`](docs/paper_decisions.md#e3-catastrophic-forgetting-protocol).
 
 ## Other experiments

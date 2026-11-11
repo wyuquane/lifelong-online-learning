@@ -100,7 +100,8 @@ The group view for one experiment is:
 https://forge.coreweave.com/wandb/AI-Athena-Lab/AKLO-lifelong-online-learning/groups/<experiment>
 ```
 
-for example `.../groups/e1_main`.
+for example `.../groups/e1_main` or
+`.../groups/e3_catastrophic-forgetting`.
 
 The W&B server used in this environment is `forge.coreweave.com`; the project
 and entity names are the ones requested. Filter by `group` (experiment name)

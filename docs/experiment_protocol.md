@@ -209,6 +209,13 @@ final-state test ACE. `final_test_ace_pooled` is secondary and prequential ACE
 is reported for context. Classification ACE is multiplied by 100; regression
 ACE is on the target scale. OTB is undefined for regression.
 
+Two properties follow from this design. TOL and TranOL have identical
+final-state rows: both apply the same online updates to the final target model,
+and TranOL's source/target blend changes only the prediction, not the update.
+On syn2 (and the regression variant syn4) the D2 tasks reuse the D1 marginal
+but flip the labels, so a single final predictor cannot fit both distributions;
+syn2's classification methods therefore sit near chance.
+
 The paper's Table 2 values are close to its Table 1 values, which suggests the
 original implementation may have evaluated each task shortly after training
 rather than only at the end. The final-state protocol requested for this

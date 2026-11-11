@@ -40,12 +40,15 @@ def load_spam(
     n_users: int = 15,
     seed: int = 0,
     test_fraction: float = 0.0,
+    n_test: int = 0,
 ) -> TaskStream:
     """Load the ECML-PKDD 2006 spam data.
 
     The provided NPZ stores a 6000 x 152543 CSR matrix with 15 users and 400
     examples per user. The reproduction samples ``n_samples`` examples per
-    user, as in the paper, and uses raw bag-of-word counts.
+    user, as in the paper, and uses raw bag-of-word counts.  ``n_test=-1``
+    uses every remaining row of a user as the test set (the E3 protocol);
+    a positive value draws a disjoint test block of that size.
     """
     archive = np.load(path, allow_pickle=True)
     X_all = sparse.csr_matrix(
@@ -60,13 +63,35 @@ def load_spam(
     for task_index, user in enumerate(unique_users):
         indices = np.flatnonzero(user_ids == user)
         rng = np.random.default_rng(seed + 2_000 + task_index)
-        take = min(n_samples, len(indices))
-        chosen = rng.choice(indices, size=take, replace=False)
-        X = X_all[chosen]
-        y = y_all[chosen]
-        X_train, y_train, X_test, y_test = _split_sparse(
-            X, y, test_fraction, seed + task_index
-        )
+        total = len(indices)
+        if n_test < 0:
+            train_size = min(n_samples, total)
+            order = rng.permutation(total)
+            train_indices = indices[order[:train_size]]
+            test_indices = indices[order[train_size:]]
+        elif n_test > 0:
+            wanted = min(n_samples + n_test, total)
+            order = rng.choice(total, size=wanted, replace=False)
+            train_size = min(n_samples, max(wanted - 1, 0))
+            train_indices = indices[order[:train_size]]
+            test_indices = indices[order[train_size:]]
+        else:
+            train_size = min(n_samples, total)
+            train_indices = indices[
+                rng.choice(total, size=train_size, replace=False)
+            ]
+            test_indices = None
+
+        X_train = X_all[train_indices]
+        y_train = y_all[train_indices]
+        if test_indices is not None:
+            X_test = X_all[test_indices]
+            y_test = y_all[test_indices]
+        else:
+            X_test, y_test = None, None
+            X_train, y_train, X_test, y_test = _split_sparse(
+                X_train, y_train, test_fraction, seed + task_index
+            )
         tasks.append(
             TaskData(
                 task_id=f"spam_{user}",

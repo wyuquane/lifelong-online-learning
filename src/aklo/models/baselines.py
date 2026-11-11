@@ -59,6 +59,15 @@ class _Base:
     def selected_models(self) -> list[LinearSnapshot]:
         return []
 
+    def final_predictor(self, task_index: int) -> Any:
+        """Predictor used for task ``task_index`` after the whole stream.
+
+        Most methods keep one final online model, so the default is ``self``.
+        ITOL and TranOL override this because their final prediction rule is
+        method-specific.
+        """
+        return self
+
 
 class ITOL(_Base):
     """Independent task online learning."""
@@ -99,6 +108,15 @@ class ITOL(_Base):
 
     def selected_models(self) -> list[LinearSnapshot]:
         return list(self.snapshots)
+
+    def final_predictor(self, task_index: int) -> LinearSnapshot:
+        """ITOL keeps a separate task-specific model for every task."""
+        if task_index < 0 or task_index >= len(self.snapshots):
+            raise IndexError(
+                f"ITOL has {len(self.snapshots)} task snapshots, "
+                f"cannot select index {task_index}"
+            )
+        return self.snapshots[task_index]
 
 
 class TOL(_Base):
@@ -237,6 +255,12 @@ class TranOL(_Base):
 
     def selected_models(self) -> list[LinearSnapshot]:
         return list(self.snapshots)
+
+    def final_predictor(self, task_index: int) -> OnlineLinearModel:
+        """The final target model, without the previous-task source blend."""
+        if self.current is None:
+            raise RuntimeError("start_task must be called before prediction")
+        return self.current
 
 
 class OTB(_Base):

@@ -35,6 +35,8 @@ def _make_spec(
     model_overrides: dict[str, Any] | None = None,
     test_fraction: float = 0.0,
     evaluate_forgetting: bool = False,
+    evaluate_final_test: bool = False,
+    data_seed: int | None = None,
     log_selected_models: bool = False,
     notes: dict[str, Any] | None = None,
 ) -> RunSpec:
@@ -53,6 +55,8 @@ def _make_spec(
         model_overrides=dict(model_overrides or {}),
         test_fraction=float(test_fraction),
         evaluate_forgetting=bool(evaluate_forgetting),
+        evaluate_final_test=bool(evaluate_final_test),
+        data_seed=data_seed,
         log_selected_models=bool(log_selected_models),
         notes=dict(notes or {}),
     )
@@ -114,8 +118,53 @@ def _e2_small_m(experiment: dict[str, Any], config: dict[str, Any]) -> list[RunS
     return specs
 
 
-def _e3_forgetting(experiment: dict[str, Any], config: dict[str, Any]) -> list[RunSpec]:
-    return _e1_main(experiment, config)
+def _e3_catastrophic_forgetting(
+    experiment: dict[str, Any], config: dict[str, Any]
+) -> list[RunSpec]:
+    """Final-state evaluation on the union of all task test sets.
+
+    Training follows E1 exactly.  After the last task, the method's final
+    predictor is evaluated on the held-out test set of every task ``1..T``.
+    The per-dataset overrides in ``e3_catastrophic-forgetting.yaml`` define the
+    separate test sets: 100 synthetic samples per task, all remaining Landmine
+    and Spam rows, and the usual 80/20 London split.  ``data_seed`` keeps the
+    data and split fixed across the ten repetitions while ``seed`` changes the
+    task and example order.
+    """
+    name = experiment["experiment"]
+    test_fraction = float(experiment.get("test_fraction", 0.2))
+    per_dataset = experiment.get("data_overrides", {})
+    data_seed = experiment.get("data_seed")
+    specs: list[RunSpec] = []
+    for dataset_name in experiment["datasets"]:
+        dataset = config["datasets"][dataset_name]
+        for method in experiment["methods"]:
+            model = config["models"][method]
+            if not _supports(model, dataset.get("task_type")):
+                continue
+            for seed in _seeds(experiment, config["base"]):
+                specs.append(
+                    _make_spec(
+                        name,
+                        dataset_name,
+                        method,
+                        seed,
+                        config["datasets"],
+                        config["models"],
+                        data_overrides=per_dataset.get(dataset_name, {}),
+                        test_fraction=test_fraction,
+                        evaluate_forgetting=bool(
+                            experiment.get("evaluate_forgetting", False)
+                        ),
+                        evaluate_final_test=bool(
+                            experiment.get("evaluate_final_test", True)
+                        ),
+                        data_seed=(
+                            int(data_seed) if data_seed is not None else None
+                        ),
+                    )
+                )
+    return specs
 
 
 def _sensitivity(experiment: dict[str, Any], config: dict[str, Any]) -> list[RunSpec]:
@@ -286,7 +335,7 @@ def _e8_runtime(experiment: dict[str, Any], config: dict[str, Any]) -> list[RunS
 _BUILDERS = {
     "e1_main": _e1_main,
     "e2_small_m": _e2_small_m,
-    "e3_forgetting": _e3_forgetting,
+    "e3_catastrophic-forgetting": _e3_catastrophic_forgetting,
     "e4_sensitivity_cls": _sensitivity,
     "e5_sensitivity_reg": _sensitivity,
     "e6_akloms_tau": _e6_akloms_tau,

@@ -45,6 +45,7 @@ def make_synthetic(
     n_samples: int = 100,
     seed: int = 0,
     test_fraction: float = 0.0,
+    n_test: int = 0,
 ) -> TaskStream:
     """Generate one of the four synthetic datasets.
 
@@ -56,16 +57,23 @@ def make_synthetic(
         Total number of tasks. Tasks are split evenly between the two
         distributions D1 and D2, then globally shuffled by the runner.
     n_samples:
-        Number of observations per task.  The underlying sample pool is at
-        least 300 observations, so experiments that vary ``m_t`` use nested
-        prefixes of the same data.
+        Number of training observations per task.  The underlying sample pool
+        is at least 300 observations, so experiments that vary ``m_t`` use
+        nested prefixes of the same data.
     seed:
         Seed for task parameters and observations.
     test_fraction:
-        Optional held-out fraction used by the forgetting experiment.
+        Optional held-out fraction used by the earlier E3 protocol. Ignored
+        when ``n_test`` is positive.
+    n_test:
+        Number of held-out test observations per task.  The test rows are the
+        next block of the same sample pool, so train and test are disjoint and
+        share the task's distribution.  ``0`` disables the separate test set.
     """
     if name not in {"syn1", "syn2", "syn3", "syn4"}:
         raise ValueError(f"Unknown synthetic dataset: {name}")
+    if n_test < 0:
+        raise ValueError("n_test must be non-negative for synthetic data")
 
     task_type = "classification" if name in {"syn1", "syn2"} else "regression"
     adversarial = name in {"syn2", "syn4"}
@@ -74,7 +82,7 @@ def make_synthetic(
     mu1 = np.array([10.0, 10.0])
     mu2 = np.array([20.0, 5.0])
     sigma = 1.0
-    pool_size = max(int(n_samples), 300)
+    pool_size = max(int(n_samples) + int(n_test), 300)
     tasks: list[TaskData] = []
 
     for index in range(n_tasks):
@@ -108,9 +116,18 @@ def make_synthetic(
 
         X = X_pool[:n_samples]
         y = y_pool[:n_samples]
-        X_train, y_train, X_test, y_test = _split(
-            X, y, test_fraction, seed + index, task_type
-        )
+        if n_test > 0:
+            # Train and test are disjoint blocks of the same task pool.  The
+            # task parameters (decision boundary, marginal) are shared, so the
+            # test set is an i.i.d. sample from the task distribution.
+            X_train = X_pool[:n_samples]
+            y_train = y_pool[:n_samples]
+            X_test = X_pool[n_samples : n_samples + n_test]
+            y_test = y_pool[n_samples : n_samples + n_test]
+        else:
+            X_train, y_train, X_test, y_test = _split(
+                X, y, test_fraction, seed + index, task_type
+            )
         tasks.append(
             TaskData(
                 task_id=f"{name}_task{index:03d}",

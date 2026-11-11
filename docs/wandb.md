@@ -41,7 +41,7 @@ python scripts/run.py --experiment e1_main
 python scripts/run.py --experiment e1_main --dataset syn1 --method aklo
 
 # The full matrix
-python scripts/run_matrix.py --experiments e1_main,e2_small_m,e3_forgetting,e4_sensitivity_cls,e5_sensitivity_reg,e6_akloms_tau,e7_akloms_models,e8_runtime
+python scripts/run_matrix.py --experiments e1_main,e2_small_m,e3_catastrophic-forgetting,e4_sensitivity_cls,e5_sensitivity_reg,e6_akloms_tau,e7_akloms_models,e8_runtime
 
 # Smoke test, no W&B
 python scripts/run_matrix.py --smoke --no-wandb --limit-per-experiment 2
@@ -66,8 +66,10 @@ Per-task metrics (step = task index):
 * `task/n_samples`
 * `state/*` (`alpha`, `epsilon`, `kb_size`, `cover_size`, `selected_ratio`,
   `w_norm`, `beta_entropy`, `beta_max`, `n_updates`, ...)
-* `forgetting/*` for E3 (`task_mean`, `pooled`, `old_tasks_mean`,
-  `current_task_mean`, ...)
+* `test/*` for E3 per-task held-out diagnostics (`ace`, `total_error`,
+  `n_samples`)
+* `final_test/ace` for each task's final-state E3 evaluation, with
+  `final_test/task` as the step metric
 
 Sample-level metrics are logged after the run, using the global sample index:
 
@@ -75,7 +77,11 @@ Sample-level metrics are logged after the run, using the global sample index:
 * `sample/task`
 
 Summary fields include `final_cumulative_ace`, `pooled_ace`,
-`final_task_ace`, timing, final model state, E3 diagnostics, and `wandb_url`.
+`final_task_ace`, timing, final model state, E3 per-task diagnostics
+(`test_ace_task_mean`, `test_ace_pooled`, `test_n_tasks`,
+`test_n_samples`), the final-state E3 metrics
+(`final_test_ace_task_mean`, `final_test_ace_pooled`,
+`final_test_n_tasks`, `final_test_n_samples`), and `wandb_url`.
 Per-task values are logged as history metrics; no tables or model checkpoints
 are logged, because W&B table logging creates artifacts and this project must
 not contain artifacts.
@@ -94,7 +100,8 @@ The group view for one experiment is:
 https://forge.coreweave.com/wandb/AI-Athena-Lab/AKLO-lifelong-online-learning/groups/<experiment>
 ```
 
-for example `.../groups/e1_main`.
+for example `.../groups/e1_main` or
+`.../groups/e3_catastrophic-forgetting`.
 
 The W&B server used in this environment is `forge.coreweave.com`; the project
 and entity names are the ones requested. Filter by `group` (experiment name)

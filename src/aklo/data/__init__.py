@@ -33,6 +33,7 @@ def load_dataset(
     """
     kind = config["kind"]
     test_fraction = float(config.get("test_fraction", 0.0))
+    n_test = int(config.get("n_test", 0))
 
     if kind == "synthetic":
         return make_synthetic(
@@ -41,6 +42,7 @@ def load_dataset(
             n_samples=int(config.get("n_samples", 100)),
             seed=seed,
             test_fraction=test_fraction,
+            n_test=n_test,
         )
 
     path = Path(config["path"])
@@ -53,6 +55,7 @@ def load_dataset(
             n_samples=int(config.get("n_samples", 150)),
             seed=seed,
             test_fraction=test_fraction,
+            n_test=n_test,
         )
     if kind == "spam":
         return load_spam(
@@ -61,6 +64,7 @@ def load_dataset(
             n_users=int(config.get("n_users", 15)),
             seed=seed,
             test_fraction=test_fraction,
+            n_test=n_test,
         )
     if kind == "london":
         return load_london(path, seed=seed, test_fraction=test_fraction)

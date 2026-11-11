@@ -16,8 +16,6 @@ from typing import Any, Iterable
 import numpy as np
 
 DATASET_ORDER = ["syn1", "syn2", "landmine", "spam", "syn3", "syn4", "london"]
-CLASSIFICATION_DATASETS = ["syn1", "syn2", "landmine", "spam"]
-REGRESSION_DATASETS = ["syn3", "syn4", "london"]
 METHOD_ORDER = ["itol", "tol", "unif_sum", "tranol", "otb", "aklo", "akloms"]
 METHOD_LABELS = {
     "itol": "ITOL",
@@ -27,6 +25,47 @@ METHOD_LABELS = {
     "otb": "OTB",
     "aklo": "AKLO",
     "akloms": "AKLOMS",
+}
+DATASET_LABELS = {
+    "syn1": "Syn1",
+    "syn2": "Syn2",
+    "landmine": "Landmine",
+    "spam": "Spam",
+    "syn3": "Syn3",
+    "syn4": "Syn4",
+    "london": "London",
+}
+# Colors and markers follow the paper's visual language closely enough to make
+# the figures comparable at a glance.
+METHOD_STYLES = {
+    "itol": ("black", "s"),
+    "tol": ("#1f77b4", "o"),
+    "unif_sum": ("#2ca02c", "^"),
+    "tranol": ("#9467bd", "D"),
+    "otb": ("#e377c2", "P"),
+    "aklo": ("#d62728", "*"),
+    "akloms": ("#ff7f0e", "X"),
+}
+PAPER_METHODS = ["itol", "tol", "unif_sum", "tranol", "otb", "aklo"]
+
+# Paper Figures 4/5 use the legend order from the experiment config, not a
+# numeric sort.  Keep that order so the figures match the paper.
+SENSITIVITY_ORDER = {
+    "e4_sensitivity_cls": {
+        "eta": [10, 1, 0.01, 0.001, 0.0001, 0],
+        "lambda": [0, 0.0001, 0.001, 0.005, 0.01, 0.05, 0.1],
+        "delta_alpha": [0, 0.001, 0.005, 0.01, 1],
+    },
+    "e5_sensitivity_reg": {
+        "eta": [0.5, 0.25, 0.05, 0.0005, 0.0001, 0],
+        "lambda": [0, 0.25, 0.625, 0.75, 0.875, 1],
+        "delta_alpha": [0, 0.001, 0.005, 0.01, 0.025, 1],
+    },
+}
+SENSITIVITY_SYMBOLS = {
+    "eta": r"$\eta$",
+    "lambda": r"$\lambda$",
+    "delta_alpha": r"$\Delta\alpha$",
 }
 
 # Paper Table 1: Average Cumulative Error Rate (%) +/- standard deviation.
@@ -276,6 +315,13 @@ def _mean_std(values: list[float]) -> str:
     return f"{mean:.2f} ± {float(np.std(values, ddof=0)):.2f}"
 
 
+def _mean_int(values: list[float]) -> str:
+    """Format a count as an integer (means of identical counts stay exact)."""
+    if not values:
+        return "-"
+    return str(int(round(float(np.mean(values)))))
+
+
 def _link(value: str, result: dict[str, Any] | None) -> str:
     if result is None:
         return value
@@ -324,31 +370,40 @@ def _method_results(
 # ---------------------------------------------------------------------------
 # Tables
 # ---------------------------------------------------------------------------
-def table_e1(results: list[dict[str, Any]]) -> str:
-    """Main comparison table (paper Table 1)."""
+def _method_by_dataset_table(
+    results: list[dict[str, Any]],
+    value_key: str,
+) -> str:
+    """Paper layout: one row per method, one column per dataset."""
     datasets = [name for name in DATASET_ORDER if any(r["dataset"] == name for r in results)]
     methods = [
         method
-        for method in METHOD_ORDER
+        for method in PAPER_METHODS
         if any(r["method"] == method for r in results)
     ]
-    headers = ["Dataset"] + [METHOD_LABELS[method] for method in methods] + ["Paper AKLO"]
+    headers = ["Method"] + [DATASET_LABELS[name] for name in datasets]
     rows = []
-    for dataset in datasets:
-        cells = [dataset]
-        for method in methods:
+    for method in methods:
+        cells = [METHOD_LABELS[method]]
+        for dataset in datasets:
             group = _method_results(results, dataset, method)
-            values = _values(group, "final_cumulative_ace", scale=_ace_scale)
-            cells.append(_link(_mean_std(values), _first(group)))
-        cells.append(f"{PAPER_TABLE1.get(dataset, {}).get('aklo', float('nan')):.2f}")
+            values = _values(group, value_key, scale=_ace_scale)
+            cells.append(
+                _link(_mean_std(values), _first(group)) if values else "–"
+            )
         rows.append(cells)
     return _markdown_table(headers, rows)
+
+
+def table_e1(results: list[dict[str, Any]]) -> str:
+    """Main comparison table (paper Table 1 layout)."""
+    return _method_by_dataset_table(results, "final_cumulative_ace")
 
 
 def table_e1_paper(results: list[dict[str, Any]]) -> str:
     """Side-by-side paper Table 1 and reproduction values."""
     datasets = [name for name in DATASET_ORDER if name in PAPER_TABLE1]
-    methods = ["itol", "tol", "unif_sum", "tranol", "otb", "aklo"]
+    methods = PAPER_METHODS
     headers = ["Dataset", "Method", "Paper", "Reproduction"]
     rows = []
     for dataset in datasets:
@@ -402,39 +457,20 @@ def table_e2(results: list[dict[str, Any]]) -> str:
 
 
 def table_e3(results: list[dict[str, Any]]) -> str:
-    """Held-out test diagnostics for the forgetting experiment."""
-    datasets = [name for name in DATASET_ORDER if any(r["dataset"] == name for r in results)]
-    methods = [
-        method
-        for method in METHOD_ORDER
-        if any(r["method"] == method for r in results)
-    ]
-    headers = ["Dataset", "Method", "Prequential", "Current test", "Old test", "Final test", "Final train"]
-    rows = []
-    for dataset in datasets:
-        for method in methods:
-            group = _method_results(results, dataset, method)
-            if not group:
-                continue
-            rows.append(
-                [
-                    dataset,
-                    METHOD_LABELS[method],
-                    _link(_mean_std(_values(group, "final_cumulative_ace", _ace_scale)), _first(group)),
-                    _mean_std(_values(group, "mean_current_test_ace", _ace_scale)),
-                    _mean_std(_values(group, "mean_old_test_ace", _ace_scale)),
-                    _mean_std(_values(group, "forgetting_task_mean", _ace_scale)),
-                    _mean_std(_values(group, "final_train_ace_task_mean", _ace_scale)),
-                ]
-            )
-    return _markdown_table(headers, rows)
+    """E3 Table 2 layout: final-state ACE on all task test sets."""
+    return _method_by_dataset_table(results, "final_test_ace_task_mean")
+
+
+def table_e3_pooled(results: list[dict[str, Any]]) -> str:
+    """Secondary E3 metric: pooled final-state test ACE."""
+    return _method_by_dataset_table(results, "final_test_ace_pooled")
 
 
 def table_e3_paper(results: list[dict[str, Any]]) -> str:
-    """Side-by-side paper Table 2 and the reproduction's final test ACE."""
+    """Paper Table 2 next to our final-state test ACE."""
     datasets = [name for name in DATASET_ORDER if name in PAPER_TABLE2]
-    methods = ["itol", "tol", "unif_sum", "tranol", "otb", "aklo"]
-    headers = ["Dataset", "Method", "Paper Table 2", "Our final test", "Our final train"]
+    methods = PAPER_METHODS
+    headers = ["Dataset", "Method", "Paper Table 2", "Our test ACE"]
     rows = []
     for dataset in datasets:
         for method in methods:
@@ -446,11 +482,19 @@ def table_e3_paper(results: list[dict[str, Any]]) -> str:
                 continue
             rows.append(
                 [
-                    dataset,
+                    DATASET_LABELS[dataset],
                     METHOD_LABELS[method],
                     f"{paper_value:.2f}",
-                    _mean_std(_values(group, "forgetting_task_mean", _ace_scale)),
-                    _mean_std(_values(group, "final_train_ace_task_mean", _ace_scale)),
+                    _link(
+                        _mean_std(
+                            _values(
+                                group,
+                                "final_test_ace_task_mean",
+                                _ace_scale,
+                            )
+                        ),
+                        _first(group),
+                    ),
                 ]
             )
     return _markdown_table(headers, rows)
@@ -459,6 +503,7 @@ def table_e3_paper(results: list[dict[str, Any]]) -> str:
 def _sensitivity_table(
     results: list[dict[str, Any]],
     parameter: str,
+    ace_label: str = "ACE (%)",
 ) -> str:
     groups = _group(
         results,
@@ -467,7 +512,7 @@ def _sensitivity_table(
     # Runs that do not override this parameter belong to the sweeps of the
     # other parameters and must not be pooled into a spurious "None" row.
     groups.pop(None, None)
-    headers = [parameter, "ACE (%)", "W&B"]
+    headers = [parameter, ace_label, "W&B"]
     rows = []
     for value in sorted(groups, key=lambda item: (item is None, item)):
         group = groups[value]
@@ -488,11 +533,11 @@ def table_e4(results: list[dict[str, Any]]) -> str:
 
 
 def table_e5(results: list[dict[str, Any]]) -> str:
-    return _sensitivity_table(results, "eta")
+    return _sensitivity_table(results, "eta", ace_label="ACE")
 
 
 def table_e6(results: list[dict[str, Any]]) -> str:
-    """AKLOMS ACE by tau and dataset (paper Table 3)."""
+    """AKLOMS ACE by tau and dataset (paper Table 3 layout)."""
     datasets = [name for name in DATASET_ORDER if any(r["dataset"] == name for r in results)]
     taus = sorted(
         {
@@ -500,12 +545,11 @@ def table_e6(results: list[dict[str, Any]]) -> str:
             for result in results
         }
     )
-    headers = ["tau"] + datasets + ["Paper mean"]
+    headers = ["Dataset"] + [f"{tau:g}" for tau in taus]
     rows = []
-    for tau in taus:
-        cells = [f"{tau:g}"]
-        paper_values = []
-        for dataset in datasets:
+    for dataset in datasets:
+        cells = [DATASET_LABELS[dataset]]
+        for tau in taus:
             group = [
                 result
                 for result in results
@@ -513,11 +557,14 @@ def table_e6(results: list[dict[str, Any]]) -> str:
                 and float(result["config"].get("model_overrides", {}).get("tau", 0.0))
                 == tau
             ]
-            cells.append(_link(_mean_std(_values(group, "final_cumulative_ace", _ace_scale)), _first(group)))
-            paper_value = PAPER_TABLE3.get(dataset, {}).get(tau)
-            if paper_value is not None:
-                paper_values.append(paper_value)
-        cells.append(f"{np.mean(paper_values):.2f}" if paper_values else "-")
+            cells.append(
+                _link(
+                    _mean_std(
+                        _values(group, "final_cumulative_ace", _ace_scale)
+                    ),
+                    _first(group),
+                )
+            )
         rows.append(cells)
     return _markdown_table(headers, rows)
 
@@ -682,309 +729,370 @@ def _pyplot():
     return plt
 
 
-def figure_e1(results: list[dict[str, Any]], output_dir: Path) -> Path | None:
-    plt = _pyplot()
-    datasets = [name for name in DATASET_ORDER if any(r["dataset"] == name for r in results)]
-    methods = [m for m in METHOD_ORDER if any(r["method"] == m for r in results)]
-    if not datasets or not methods:
+def _average_task_curve(results: list[dict[str, Any]]) -> np.ndarray | None:
+    """Average cumulative-ACE curve over one or more runs."""
+    arrays = []
+    for result in results:
+        tasks = result.get("tasks", [])
+        if not tasks:
+            continue
+        curve = np.asarray(
+            [task.get("cumulative_ace", np.nan) for task in tasks],
+            dtype=np.float64,
+        )
+        arrays.append(curve * _ace_scale(result))
+    if not arrays:
         return None
-    width = 0.8 / len(methods)
-    x = np.arange(len(datasets))
-    fig, ax = plt.subplots(figsize=(10, 4.5))
-    for index, method in enumerate(methods):
-        means = []
-        for dataset in datasets:
-            values = _values(
-                _method_results(results, dataset, method),
-                "final_cumulative_ace",
-                _ace_scale,
-            )
-            means.append(float(np.mean(values)) if values else np.nan)
-        ax.bar(x + index * width - 0.4 + width / 2, means, width, label=METHOD_LABELS[method])
-    ax.set_xticks(x)
-    ax.set_xticklabels(datasets)
-    ax.set_ylabel("ACE (%)")
-    ax.set_title("E1: average cumulative error by dataset")
-    ax.legend(ncol=3, fontsize=8)
-    fig.tight_layout()
-    path = output_dir / "e1_main.png"
-    fig.savefig(path, dpi=160)
-    plt.close(fig)
-    return path
+    length = min(len(array) for array in arrays)
+    return np.mean([array[:length] for array in arrays], axis=0)
+
+
+def _paper_style(plt) -> None:
+    plt.rcParams.update(
+        {
+            "font.size": 9,
+            "axes.labelsize": 9,
+            "axes.titlesize": 10,
+            "legend.fontsize": 7,
+            "xtick.labelsize": 8,
+            "ytick.labelsize": 8,
+            "axes.spines.top": False,
+            "axes.spines.right": False,
+            "figure.dpi": 160,
+        }
+    )
 
 
 def figure_e2(results: list[dict[str, Any]], output_dir: Path) -> Path | None:
+    """Paper Figure 3: ACE evolution for each m_t on syn1."""
     plt = _pyplot()
-    methods = [m for m in METHOD_ORDER if any(r["method"] == m for r in results)]
-    if not methods:
+    _paper_style(plt)
+    methods = [m for m in PAPER_METHODS if any(r["method"] == m for r in results)]
+    sample_counts = sorted(
+        {
+            int(result["config"].get("data_overrides", {}).get("n_samples", 0))
+            for result in results
+        }
+    )
+    sample_counts = [value for value in sample_counts if value > 0]
+    if not methods or not sample_counts:
         return None
-    fig, ax = plt.subplots(figsize=(7, 4.5))
-    for method in methods:
-        points = []
-        for result in results:
-            if result["method"] != method:
+
+    columns = 4
+    rows = int(np.ceil(len(sample_counts) / columns))
+    fig, axes = plt.subplots(
+        rows, columns, figsize=(16, 3.9 * rows), squeeze=False
+    )
+    letters = "abcdefghijklmnop"
+    for panel, n_samples in enumerate(sample_counts):
+        axis = axes[panel // columns][panel % columns]
+        for method in methods:
+            group = [
+                result
+                for result in results
+                if result["method"] == method
+                and int(
+                    result["config"].get("data_overrides", {}).get("n_samples", -1)
+                )
+                == n_samples
+            ]
+            curve = _average_task_curve(group)
+            if curve is None:
                 continue
-            n_samples = result["config"].get("data_overrides", {}).get("n_samples")
-            value = result.get("summary", {}).get("final_cumulative_ace")
-            if n_samples is not None and value is not None:
-                points.append((int(n_samples), float(value) * _ace_scale(result)))
-        if points:
-            points.sort()
-            ax.plot([p[0] for p in points], [p[1] for p in points], marker="o", label=METHOD_LABELS[method])
-    ax.set_xscale("log")
-    ax.set_xlabel("Observations per task (m_t)")
-    ax.set_ylabel("ACE (%)")
-    ax.set_title("E2: effect of the number of observations per task (syn1)")
-    ax.legend(fontsize=8)
-    fig.tight_layout()
-    path = output_dir / "e2_small_m.png"
-    fig.savefig(path, dpi=160)
-    plt.close(fig)
-    return path
-
-
-def figure_e3(results: list[dict[str, Any]], output_dir: Path) -> Path | None:
-    plt = _pyplot()
-    datasets = [name for name in DATASET_ORDER if any(r["dataset"] == name for r in results)]
-    if not datasets:
-        return None
-    metrics = [
-        ("final_cumulative_ace", "Prequential"),
-        ("mean_current_test_ace", "Current test"),
-        ("mean_old_test_ace", "Old test"),
-        ("forgetting_task_mean", "Final test"),
-    ]
-    x = np.arange(len(datasets))
-    width = 0.8 / len(metrics)
-    fig, ax = plt.subplots(figsize=(10, 4.5))
-    for index, (key, label) in enumerate(metrics):
-        means = []
-        for dataset in datasets:
-            values = _values(
-                _method_results(results, dataset, "aklo"),
-                key,
-                _ace_scale,
+            color, marker = METHOD_STYLES[method]
+            axis.plot(
+                np.arange(1, len(curve) + 1),
+                curve,
+                color=color,
+                marker=marker,
+                markersize=4,
+                markerfacecolor="white",
+                markeredgewidth=1.0,
+                markevery=10,
+                linewidth=1.4,
+                label=METHOD_LABELS[method],
             )
-            means.append(float(np.mean(values)) if values else np.nan)
-        ax.bar(x + index * width - 0.4 + width / 2, means, width, label=label)
-    ax.set_xticks(x)
-    ax.set_xticklabels(datasets)
-    ax.set_ylabel("ACE (%)")
-    ax.set_title("E3: AKLO prequential vs held-out test diagnostics")
-    ax.legend(fontsize=8)
-    fig.tight_layout()
-    path = output_dir / "e3_forgetting.png"
-    fig.savefig(path, dpi=160)
+        axis.set_xlim(0, 200)
+        axis.set_xticks(np.arange(0, 201, 25))
+        axis.set_ylim(bottom=0.0)
+        axis.set_xlabel("Task Index", labelpad=2)
+        axis.set_ylabel("ACE (%)")
+        axis.legend(loc="upper right", fontsize=6.5, frameon=True)
+        axis.text(
+            0.5,
+            -0.28,
+            f"({letters[panel]}) $m_t$ = {n_samples}",
+            transform=axis.transAxes,
+            ha="center",
+            va="top",
+            fontsize=11,
+        )
+    for panel in range(len(sample_counts), rows * columns):
+        axes[panel // columns][panel % columns].axis("off")
+    fig.subplots_adjust(bottom=0.16, hspace=0.55, wspace=0.30)
+    path = output_dir / "e2_small_m.png"
+    fig.savefig(path, dpi=160, bbox_inches="tight")
     plt.close(fig)
     return path
 
 
-def _sensitivity_figure(
+def _task_curves(
     results: list[dict[str, Any]],
     parameter: str,
-    title: str,
+    values: list[float],
+) -> dict[float, np.ndarray]:
+    """Average cumulative-ACE curves for each swept parameter value."""
+    curves: dict[float, np.ndarray] = {}
+    for value in values:
+        group = [
+            result
+            for result in results
+            if result.get("config", {})
+            .get("model_overrides", {})
+            .get(parameter)
+            == value
+        ]
+        arrays = []
+        for result in group:
+            tasks = result.get("tasks", [])
+            if not tasks:
+                continue
+            curve = np.asarray(
+                [task.get("cumulative_ace", np.nan) for task in tasks],
+                dtype=np.float64,
+            )
+            arrays.append(curve * _ace_scale(result))
+        if arrays:
+            length = min(len(array) for array in arrays)
+            curves[float(value)] = np.mean(
+                [array[:length] for array in arrays], axis=0
+            )
+    return curves
+
+
+def _paper_sensitivity_figure(
+    results: list[dict[str, Any]],
+    experiment: str,
     output_path: Path,
 ) -> Path | None:
+    """Three-panel ACE-vs-task figure in the style of paper Figures 4/5."""
     plt = _pyplot()
-    groups = _group(
-        results,
-        lambda result: result["config"].get("model_overrides", {}).get(parameter),
-    )
-    if not groups:
+    _paper_style(plt)
+    if not results:
         return None
-    points = []
-    for value, group in groups.items():
-        if value is None:
-            continue
-        values = _values(group, "final_cumulative_ace", _ace_scale)
-        if values:
-            points.append((float(value), float(np.mean(values))))
-    if not points:
+    order = SENSITIVITY_ORDER[experiment]
+    parameters = ["eta", "lambda", "delta_alpha"]
+    task_type = results[0].get("task_type", "classification")
+    ylabel = "ACE (%)" if task_type == "classification" else "ACE"
+    colors = plt.get_cmap("tab10").colors
+    markers = ["o", "s", "^", "D", "x", "v", "P"]
+
+    fig, axes = plt.subplots(1, 3, figsize=(15, 4.8))
+    plotted = False
+    for axis, parameter, letter in zip(axes, parameters, "abc"):
+        values = order[parameter]
+        curves = _task_curves(results, parameter, values)
+        for index, value in enumerate(values):
+            curve = curves.get(float(value))
+            if curve is None:
+                continue
+            symbol = SENSITIVITY_SYMBOLS[parameter]
+            axis.plot(
+                np.arange(1, len(curve) + 1),
+                curve,
+                color=colors[index % len(colors)],
+                marker=markers[index % len(markers)],
+                markersize=4.5,
+                markerfacecolor="white",
+                markeredgewidth=1.1,
+                markevery=10,
+                linewidth=1.5,
+                label=f"{symbol} = {value:g}",
+            )
+            plotted = True
+        axis.set_xlim(0, 200)
+        axis.set_xticks(np.arange(0, 201, 25))
+        axis.set_xlabel("Tasks", labelpad=2)
+        axis.set_ylabel(ylabel)
+        axis.set_ylim(bottom=0.0)
+        axis.legend(loc="upper right", fontsize=7.5, frameon=True)
+        axis.text(
+            0.5,
+            -0.30,
+            f"({letter}) Parameter: {SENSITIVITY_SYMBOLS[parameter]}",
+            transform=axis.transAxes,
+            ha="center",
+            va="top",
+            fontsize=12,
+        )
+    if not plotted:
+        plt.close(fig)
         return None
-    points.sort()
-    fig, ax = plt.subplots(figsize=(6, 4))
-    ax.plot([p[0] for p in points], [p[1] for p in points], marker="o")
-    ax.set_xscale("symlog", linthresh=1e-5)
-    ax.set_xlabel(parameter)
-    ax.set_ylabel("ACE (%)")
-    ax.set_title(title)
-    fig.tight_layout()
-    fig.savefig(output_path, dpi=160)
+    fig.subplots_adjust(bottom=0.24, wspace=0.30)
+    fig.savefig(output_path, dpi=160, bbox_inches="tight")
     plt.close(fig)
     return output_path
 
 
 def figure_e4(results: list[dict[str, Any]], output_dir: Path) -> Path | None:
-    # The experiment contains three sweeps; make one figure with three panels.
-    plt = _pyplot()
-    parameters = ["eta", "lambda", "delta_alpha"]
-    fig, axes = plt.subplots(1, 3, figsize=(13, 3.8))
-    plotted = False
-    for axis, parameter in zip(axes, parameters):
-        groups = _group(
-            results,
-            lambda result: result["config"].get("model_overrides", {}).get(parameter),
-        )
-        points = []
-        for value, group in groups.items():
-            if value is None:
-                continue
-            values = _values(group, "final_cumulative_ace", _ace_scale)
-            if values:
-                points.append((float(value), float(np.mean(values))))
-        if points:
-            points.sort()
-            axis.plot([p[0] for p in points], [p[1] for p in points], marker="o")
-            axis.set_xscale("symlog", linthresh=1e-5)
-            plotted = True
-        axis.set_xlabel(parameter)
-        axis.set_ylabel("ACE (%)")
-        axis.set_title(f"syn1: {parameter}")
-    if not plotted:
-        plt.close(fig)
-        return None
-    fig.tight_layout()
-    path = output_dir / "e4_sensitivity_cls.png"
-    fig.savefig(path, dpi=160)
-    plt.close(fig)
-    return path
+    return _paper_sensitivity_figure(
+        results,
+        "e4_sensitivity_cls",
+        output_dir / "e4_sensitivity_cls.png",
+    )
 
 
 def figure_e5(results: list[dict[str, Any]], output_dir: Path) -> Path | None:
-    plt = _pyplot()
-    parameters = ["eta", "lambda", "delta_alpha"]
-    fig, axes = plt.subplots(1, 3, figsize=(13, 3.8))
-    plotted = False
-    for axis, parameter in zip(axes, parameters):
-        groups = _group(
-            results,
-            lambda result: result["config"].get("model_overrides", {}).get(parameter),
-        )
-        points = []
-        for value, group in groups.items():
-            if value is None:
-                continue
-            values = _values(group, "final_cumulative_ace", _ace_scale)
-            if values:
-                points.append((float(value), float(np.mean(values))))
-        if points:
-            points.sort()
-            axis.plot([p[0] for p in points], [p[1] for p in points], marker="o")
-            axis.set_xscale("symlog", linthresh=1e-5)
-            plotted = True
-        axis.set_xlabel(parameter)
-        axis.set_ylabel("ACE (%)")
-        axis.set_title(f"syn3: {parameter}")
-    if not plotted:
-        plt.close(fig)
-        return None
-    fig.tight_layout()
-    path = output_dir / "e5_sensitivity_reg.png"
-    fig.savefig(path, dpi=160)
-    plt.close(fig)
-    return path
+    return _paper_sensitivity_figure(
+        results,
+        "e5_sensitivity_reg",
+        output_dir / "e5_sensitivity_reg.png",
+    )
 
 
-def figure_e6(results: list[dict[str, Any]], output_dir: Path) -> Path | None:
-    plt = _pyplot()
-    datasets = [name for name in DATASET_ORDER if any(r["dataset"] == name for r in results)]
-    if not datasets:
-        return None
-    columns = 4
-    rows = int(np.ceil(len(datasets) / columns))
-    fig, axes = plt.subplots(rows, columns, figsize=(14, 3.2 * rows), squeeze=False)
-    for index, dataset in enumerate(datasets):
-        axis = axes[index // columns][index % columns]
-        points = []
-        for result in results:
-            if result["dataset"] != dataset:
-                continue
-            tau = result["config"].get("model_overrides", {}).get("tau")
-            value = result.get("summary", {}).get("final_cumulative_ace")
-            if tau is not None and value is not None:
-                points.append((float(tau), float(value) * _ace_scale(result)))
-        points.sort()
-        if points:
-            axis.plot([p[0] for p in points], [p[1] for p in points], marker="o")
-            axis.set_xscale("log")
-        axis.set_title(dataset)
-        axis.set_xlabel("tau")
-        axis.set_ylabel("ACE (%)")
-    for index in range(len(datasets), rows * columns):
-        axes[index // columns][index % columns].axis("off")
-    fig.suptitle("E6: AKLOMS sensitivity to tau")
-    fig.tight_layout()
-    path = output_dir / "e6_akloms_tau.png"
-    fig.savefig(path, dpi=160)
-    plt.close(fig)
-    return path
-
-
-def figure_e7(results: list[dict[str, Any]], output_dir: Path) -> Path | None:
-    plt = _pyplot()
-    if not results:
-        return None
+def _e7_series(results: list[dict[str, Any]]) -> dict[int, list[dict[str, float]]]:
+    """ACE, remaining-model count, and remaining-model ratio per task count."""
     task_counts = sorted(
         {
             int(result["config"].get("data_overrides", {}).get("n_tasks", 0))
             for result in results
         }
     )
-    taus = sorted(
-        {
-            float(result["config"].get("model_overrides", {}).get("tau", 0.0))
-            for result in results
-        }
-    )
-    if not task_counts or not taus:
-        return None
-    ace_grid = np.full((len(task_counts), len(taus)), np.nan)
-    ratio_grid = np.full((len(task_counts), len(taus)), np.nan)
-    for i, task_count in enumerate(task_counts):
-        for j, tau in enumerate(taus):
+    series: dict[int, list[dict[str, float]]] = {}
+    for task_count in task_counts:
+        taus = sorted(
+            {
+                float(result["config"].get("model_overrides", {}).get("tau", 0.0))
+                for result in results
+                if int(
+                    result["config"].get("data_overrides", {}).get("n_tasks", -1)
+                )
+                == task_count
+            }
+        )
+        points = []
+        for tau in taus:
             group = [
                 result
                 for result in results
-                if int(result["config"].get("data_overrides", {}).get("n_tasks", -1))
+                if int(
+                    result["config"].get("data_overrides", {}).get("n_tasks", -1)
+                )
                 == task_count
-                and float(result["config"].get("model_overrides", {}).get("tau", -1.0))
+                and float(
+                    result["config"].get("model_overrides", {}).get("tau", -1.0)
+                )
                 == tau
             ]
             values = _values(group, "final_cumulative_ace", _ace_scale)
-            if values:
-                ace_grid[i, j] = float(np.mean(values))
             ratios = [
                 result.get("summary", {}).get("final_state", {}).get("selected_ratio")
                 for result in group
             ]
             ratios = [float(value) for value in ratios if value is not None]
-            if ratios:
-                ratio_grid[i, j] = float(np.mean(ratios)) * 100.0
-    fig, axes = plt.subplots(1, 2, figsize=(13, 4.2))
-    for axis, grid, title in zip(
-        axes,
-        [ace_grid, ratio_grid],
-        ["ACE (%)", "Selected models (%)"],
-    ):
-        image = axis.imshow(grid, aspect="auto", cmap="viridis")
-        axis.set_xticks(range(len(taus)))
-        axis.set_xticklabels([f"{tau:g}" for tau in taus], rotation=45)
-        axis.set_yticks(range(len(task_counts)))
-        axis.set_yticklabels([str(value) for value in task_counts])
-        axis.set_xlabel("tau")
-        axis.set_ylabel("Tasks")
-        axis.set_title(title)
-        fig.colorbar(image, ax=axis)
-    fig.suptitle("E7: AKLOMS model selection on syn1")
-    fig.tight_layout()
+            if not values or not ratios:
+                continue
+            ratio = float(np.mean(ratios))
+            points.append(
+                {
+                    "tau": float(tau),
+                    "ace": float(np.mean(values)),
+                    "ratio": ratio,
+                    "n_models": ratio * task_count,
+                }
+            )
+        if points:
+            series[task_count] = sorted(points, key=lambda item: item["tau"])
+    return series
+
+
+def figure_e7(results: list[dict[str, Any]], output_dir: Path) -> Path | None:
+    """Paper Figure 7: AKLOMS ACE, remaining models, and remaining ratio."""
+    plt = _pyplot()
+    _paper_style(plt)
+    series = _e7_series(results)
+    if not series:
+        return None
+    colors = plt.get_cmap("tab10").colors
+    markers = ["o", "s", "^", "D", "x", "v", "P", "X"]
+
+    fig, axes = plt.subplots(1, 3, figsize=(16, 4.6))
+    for index, (task_count, points) in enumerate(series.items()):
+        color = colors[index % len(colors)]
+        marker = markers[index % len(markers)]
+        label = f"# of Tasks - {task_count}"
+        axes[0].plot(
+            [point["tau"] for point in points],
+            [point["ace"] for point in points],
+            color=color,
+            marker=marker,
+            markersize=4.5,
+            markerfacecolor="white",
+            linewidth=1.4,
+            label=label,
+        )
+        ordered = sorted(points, key=lambda item: item["ratio"])
+        axes[1].plot(
+            [point["n_models"] for point in ordered],
+            [point["ace"] for point in ordered],
+            color=color,
+            marker=marker,
+            markersize=4.5,
+            markerfacecolor="white",
+            linewidth=1.4,
+            label=label,
+        )
+        axes[2].plot(
+            [point["ratio"] for point in ordered],
+            [point["ace"] for point in ordered],
+            color=color,
+            marker=marker,
+            markersize=4.5,
+            markerfacecolor="white",
+            linewidth=1.4,
+            label=label,
+        )
+
+    axes[0].set_xlim(-0.5, 25.5)
+    axes[0].set_xticks([0, 5, 10, 15, 20, 25])
+    axes[0].set_xlabel(r"$\tau$")
+    axes[0].set_ylabel("ACE (%)")
+    axes[0].legend(loc="upper left", fontsize=6.5, frameon=True)
+
+    axes[1].set_xlim(left=0.0)
+    axes[1].set_xlabel("Model Number")
+    axes[1].set_ylabel("ACE (%)")
+    axes[1].set_title("Model Number - Performance", fontsize=10)
+    axes[1].legend(loc="upper right", fontsize=6.5, frameon=True)
+
+    axes[2].set_xlim(0.0, 1.01)
+    axes[2].set_xticks(np.arange(0.0, 1.01, 0.2))
+    axes[2].set_xlabel("Model Ratio")
+    axes[2].set_ylabel("ACE (%)")
+    axes[2].set_title("Model Ratio - Performance", fontsize=10)
+    axes[2].legend(loc="upper right", fontsize=6.5, frameon=True)
+
+    for axis, label in zip(axes, ["(a)", "(b)", "(b)"]):
+        axis.text(
+            0.5,
+            -0.28,
+            label,
+            transform=axis.transAxes,
+            ha="center",
+            va="top",
+            fontsize=12,
+        )
+    fig.subplots_adjust(bottom=0.20, wspace=0.30)
     path = output_dir / "e7_akloms_models.png"
-    fig.savefig(path, dpi=160)
+    fig.savefig(path, dpi=160, bbox_inches="tight")
     plt.close(fig)
     return path
 
 
 def figure_e8(results: list[dict[str, Any]], output_dir: Path) -> Path | None:
+    """Paper Figure 8: runtime versus m_t and task count, with line plots."""
     plt = _pyplot()
+    _paper_style(plt)
     aklo_results = [
         result
         for result in results
@@ -999,13 +1107,20 @@ def figure_e8(results: list[dict[str, Any]], output_dir: Path) -> Path | None:
     ]
     if not aklo_results and not akloms_results:
         return None
-    fig, axes = plt.subplots(1, 2, figsize=(13, 4.2))
+    fig, axes = plt.subplots(1, 2, figsize=(14, 4.6))
+    colors = plt.get_cmap("tab10").colors
+    markers = ["o", "s", "^", "D", "x", "v", "P", "X"]
+
     if aklo_results:
-        task_counts = sorted({int(r["config"]["notes"]["task_count"]) for r in aklo_results})
-        sample_counts = sorted({int(r["config"]["notes"]["n_samples"]) for r in aklo_results})
-        grid = np.full((len(task_counts), len(sample_counts)), np.nan)
-        for i, task_count in enumerate(task_counts):
-            for j, n_samples in enumerate(sample_counts):
+        task_counts = sorted(
+            {int(r["config"]["notes"]["task_count"]) for r in aklo_results}
+        )
+        sample_counts = sorted(
+            {int(r["config"]["notes"]["n_samples"]) for r in aklo_results}
+        )
+        for index, task_count in enumerate(task_counts):
+            xs, ys = [], []
+            for n_samples in sample_counts:
                 values = _values(
                     [
                         r
@@ -1016,24 +1131,38 @@ def figure_e8(results: list[dict[str, Any]], output_dir: Path) -> Path | None:
                     "train_seconds",
                 )
                 if values:
-                    grid[i, j] = float(np.mean(values))
-        image = axes[0].imshow(grid, aspect="auto", cmap="viridis")
-        axes[0].set_xticks(range(len(sample_counts)))
-        axes[0].set_xticklabels([str(v) for v in sample_counts])
-        axes[0].set_yticks(range(len(task_counts)))
-        axes[0].set_yticklabels([str(v) for v in task_counts])
-        axes[0].set_xlabel("m_t")
-        axes[0].set_ylabel("Tasks")
-        axes[0].set_title("AKLO runtime (s)")
-        fig.colorbar(image, ax=axes[0])
+                    xs.append(n_samples)
+                    ys.append(float(np.mean(values)))
+            axes[0].plot(
+                xs,
+                ys,
+                color=colors[index % len(colors)],
+                marker=markers[index % len(markers)],
+                markersize=4.5,
+                markerfacecolor="white",
+                linewidth=1.4,
+                label=f"Task # - {task_count}",
+            )
+        axes[0].set_xlabel("Data # of One Task")
+        axes[0].set_ylabel("Running Time (s)")
+        axes[0].set_title("AKLO", fontsize=11)
+        axes[0].legend(fontsize=6.5, loc="upper left", frameon=True)
     else:
         axes[0].axis("off")
+
     if akloms_results:
-        task_counts = sorted({int(r["config"]["notes"]["task_count"]) for r in akloms_results})
-        taus = sorted({float(r["config"]["notes"]["tau"]) for r in akloms_results})
-        grid = np.full((len(task_counts), len(taus)), np.nan)
-        for i, task_count in enumerate(task_counts):
-            for j, tau in enumerate(taus):
+        task_counts = sorted(
+            {int(r["config"]["notes"]["task_count"]) for r in akloms_results}
+        )
+        present_taus = {
+            float(r["config"]["notes"]["tau"]) for r in akloms_results
+        }
+        tau_order = [10.0, 0.05, 0.025, 0.01, 0.005, 0.0025, 0.001, 0.0]
+        taus = [tau for tau in tau_order if tau in present_taus]
+        taus.extend(sorted(present_taus - set(taus)))
+        for index, tau in enumerate(taus):
+            xs, ys = [], []
+            for task_count in task_counts:
                 values = _values(
                     [
                         r
@@ -1044,22 +1173,38 @@ def figure_e8(results: list[dict[str, Any]], output_dir: Path) -> Path | None:
                     "train_seconds",
                 )
                 if values:
-                    grid[i, j] = float(np.mean(values))
-        image = axes[1].imshow(grid, aspect="auto", cmap="viridis")
-        axes[1].set_xticks(range(len(taus)))
-        axes[1].set_xticklabels([f"{tau:g}" for tau in taus], rotation=45)
-        axes[1].set_yticks(range(len(task_counts)))
-        axes[1].set_yticklabels([str(v) for v in task_counts])
-        axes[1].set_xlabel("tau")
-        axes[1].set_ylabel("Tasks")
-        axes[1].set_title("AKLOMS runtime (s)")
-        fig.colorbar(image, ax=axes[1])
+                    xs.append(task_count)
+                    ys.append(float(np.mean(values)))
+            axes[1].plot(
+                xs,
+                ys,
+                color=colors[index % len(colors)],
+                marker=markers[index % len(markers)],
+                markersize=4.5,
+                markerfacecolor="white",
+                linewidth=1.4,
+                label=rf"$\tau$ - {tau:g}",
+            )
+        axes[1].set_xlabel("# of Tasks")
+        axes[1].set_ylabel("Running Time (s)")
+        axes[1].set_title("AKLOMS", fontsize=11)
+        axes[1].legend(fontsize=6.5, loc="upper left", frameon=True)
     else:
         axes[1].axis("off")
-    fig.suptitle("E8: runtime scaling")
-    fig.tight_layout()
+
+    for axis, label in zip(axes, ["(a)", "(b)"]):
+        axis.text(
+            0.5,
+            -0.24,
+            label,
+            transform=axis.transAxes,
+            ha="center",
+            va="top",
+            fontsize=12,
+        )
+    fig.subplots_adjust(bottom=0.18, wspace=0.28)
     path = output_dir / "e8_runtime.png"
-    fig.savefig(path, dpi=160)
+    fig.savefig(path, dpi=160, bbox_inches="tight")
     plt.close(fig)
     return path
 
@@ -1079,9 +1224,9 @@ def build_report(
     sections: list[str] = [
         "# AKLO reproduction report",
         "",
-        "Generated from the JSON files in `results/`. Values are percentages",
-        "unless stated otherwise. W&B links are included when the run was",
-        "tracked online.",
+        "Generated from the JSON files in `results/`. Classification ACE is a",
+        "percentage; regression ACE is on the target scale. W&B links are",
+        "included when the run was tracked online.",
         "",
         "## E1: main comparison (paper Table 1)",
         "",
@@ -1097,15 +1242,41 @@ def build_report(
         "",
         "## E3: catastrophic forgetting (paper Table 2)",
         "",
-        table_e3(load_results(results_dir, "e3_forgetting")),
+        "Training follows E1 exactly. After the last task, the method's final",
+        "predictor is evaluated on the test set of every task `1..T`, matching",
+        "the paper's description: the whole test set constituted of samples from",
+        "previous tasks is fed to the model after training. The synthetic",
+        "datasets use 50 tasks (25 D1 + 25 D2) with 100 training and 100 separate",
+        "test samples per task. Landmine uses 150 training rows per task and all",
+        "remaining rows as test; Spam uses 200 training rows per user and all",
+        "remaining rows as test. London keeps an 80/20 split per school. Each",
+        "experiment is repeated with 10 seeds; the data and split are fixed and",
+        "only the task/example order changes. The primary metric is the",
+        "task-averaged test ACE, with the pooled test ACE as a secondary metric.",
+        "Classification ACE is multiplied by 100; regression ACE is on the target",
+        "scale. OTB is not defined for regression, so those cells are empty.",
+        "",
+        table_e3(load_results(results_dir, "e3_catastrophic-forgetting")),
+        "",
+        "### Secondary metric: pooled test ACE",
+        "",
+        table_e3_pooled(
+            load_results(results_dir, "e3_catastrophic-forgetting")
+        ),
         "",
         "### Paper vs reproduction",
         "",
-        table_e3_paper(load_results(results_dir, "e3_forgetting")),
+        table_e3_paper(
+            load_results(results_dir, "e3_catastrophic-forgetting")
+        ),
         "",
-        "The paper's Table 2 is lower than its Table 1, which is consistent with",
-        "re-feeding the training samples after training. We keep a held-out",
-        "split and report both readings; see `docs/experiment_protocol.md`.",
+        "The paper reports mean ± standard deviation over 10 repetitions. Our",
+        "table uses the same aggregation over seeds 0-9. TOL and TranOL have",
+        "identical rows because both perform the same online updates on the",
+        "final target model; TranOL's source/target blend affects only its",
+        "prediction. On syn2 the D2 tasks flip the labels of the D1 marginal,",
+        "so every non-ITOL method is near chance. See",
+        "`docs/experiment_protocol.md` for the exact protocol.",
         "",
         "## E4: classification sensitivity (paper Figure 4)",
         "",
@@ -1129,11 +1300,11 @@ def build_report(
         "",
         "### lambda",
         "",
-        _sensitivity_table(load_results(results_dir, "e5_sensitivity_reg"), "lambda"),
+        _sensitivity_table(load_results(results_dir, "e5_sensitivity_reg"), "lambda", "ACE"),
         "",
         "### delta_alpha",
         "",
-        _sensitivity_table(load_results(results_dir, "e5_sensitivity_reg"), "delta_alpha"),
+        _sensitivity_table(load_results(results_dir, "e5_sensitivity_reg"), "delta_alpha", "ACE"),
         "",
         "## E6: AKLOMS tau sensitivity (paper Table 3)",
         "",
@@ -1174,12 +1345,9 @@ def build_report(
 
     if make_figures:
         figures = [
-            ("e1_main.png", figure_e1(load_results(results_dir, "e1_main"), output_dir)),
             ("e2_small_m.png", figure_e2(load_results(results_dir, "e2_small_m"), output_dir)),
-            ("e3_forgetting.png", figure_e3(load_results(results_dir, "e3_forgetting"), output_dir)),
             ("e4_sensitivity_cls.png", figure_e4(load_results(results_dir, "e4_sensitivity_cls"), output_dir)),
             ("e5_sensitivity_reg.png", figure_e5(load_results(results_dir, "e5_sensitivity_reg"), output_dir)),
-            ("e6_akloms_tau.png", figure_e6(load_results(results_dir, "e6_akloms_tau"), output_dir)),
             ("e7_akloms_models.png", figure_e7(load_results(results_dir, "e7_akloms_models"), output_dir)),
             ("e8_runtime.png", figure_e8(load_results(results_dir, "e8_runtime"), output_dir)),
         ]

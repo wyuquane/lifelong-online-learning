@@ -39,11 +39,15 @@ def load_landmine(
     n_samples: int = 150,
     seed: int = 0,
     test_fraction: float = 0.0,
+    n_test: int = 0,
 ) -> TaskStream:
     """Load the landmine CSV and build one task per geographical region.
 
-    The paper samples 150 examples per task. The sample is redrawn for each
-    repetition because the runner passes a different seed per repetition.
+    The paper samples 150 training examples per task.  ``n_test=-1`` puts every
+    row that is not used for training into the test set, which is the E3
+    catastrophic-forgetting protocol.  A positive ``n_test`` draws a disjoint
+    test block of that size.  ``n_test=0`` keeps the earlier behaviour, where
+    ``test_fraction`` optionally splits the sampled rows.
     """
     frame = pd.read_csv(path)
     feature_cols = [c for c in frame.columns if c.startswith("feature_")]
@@ -53,14 +57,37 @@ def load_landmine(
         sorted(frame.groupby("task_id"), key=lambda item: int(item[0]))
     ):
         rng = np.random.default_rng(seed + 1_000 + task_index)
-        take = min(n_samples, len(group))
-        indices = rng.choice(len(group), size=take, replace=False)
-        group = group.iloc[indices]
-        X = group[feature_cols].to_numpy(dtype=np.float64)
-        y = np.where(group["label"].to_numpy() == 1, 1.0, -1.0)
-        X_train, y_train, X_test, y_test = _split(
-            X, y, test_fraction, seed + task_index
-        )
+        total = len(group)
+        if n_test < 0:
+            # Keep the training block at the paper's size and use every
+            # remaining row as the held-out test set.
+            train_size = min(n_samples, total)
+            order = rng.permutation(total)
+            train_indices = order[:train_size]
+            test_indices = order[train_size:]
+        elif n_test > 0:
+            wanted = min(n_samples + n_test, total)
+            order = rng.choice(total, size=wanted, replace=False)
+            train_size = min(n_samples, max(wanted - 1, 0))
+            train_indices = order[:train_size]
+            test_indices = order[train_size:]
+        else:
+            train_size = min(n_samples, total)
+            train_indices = rng.choice(total, size=train_size, replace=False)
+            test_indices = None
+
+        train_group = group.iloc[train_indices]
+        X_train = train_group[feature_cols].to_numpy(dtype=np.float64)
+        y_train = np.where(train_group["label"].to_numpy() == 1, 1.0, -1.0)
+        if test_indices is not None:
+            test_group = group.iloc[test_indices]
+            X_test = test_group[feature_cols].to_numpy(dtype=np.float64)
+            y_test = np.where(test_group["label"].to_numpy() == 1, 1.0, -1.0)
+        else:
+            X_test, y_test = None, None
+            X_train, y_train, X_test, y_test = _split(
+                X_train, y_train, test_fraction, seed + task_index
+            )
         tasks.append(
             TaskData(
                 task_id=f"landmine_{int(task_id):02d}",

@@ -51,6 +51,63 @@ def test_e1_specs_skip_unsupported_models() -> None:
     assert "otb" not in regression_methods
 
 
+def test_e3_specs_use_catastrophic_forgetting_protocol() -> None:
+    config = load_config(
+        ROOT / "configs" / "experiments" / "e3_catastrophic-forgetting.yaml"
+    )
+    specs = build_specs(config)
+    # 39 method/dataset combinations per seed, 10 seeds.
+    assert len(specs) == (4 * 6 + 3 * 5) * 10
+    assert {spec.seed for spec in specs} == set(range(10))
+    assert all(spec.test_fraction == 0.2 for spec in specs)
+    assert all(spec.evaluate_final_test for spec in specs)
+    assert all(not spec.evaluate_forgetting for spec in specs)
+    assert all(spec.data_seed == 0 for spec in specs)
+    overrides = {spec.dataset: spec.data_overrides for spec in specs}
+    assert overrides["syn1"] == {"n_tasks": 50, "n_samples": 100, "n_test": 100}
+    assert overrides["syn3"] == {"n_tasks": 50, "n_samples": 100, "n_test": 100}
+    assert overrides["landmine"] == {"n_samples": 150, "n_test": -1}
+    assert overrides["spam"] == {"n_samples": 200, "n_test": -1}
+    assert overrides["london"] == {}
+
+
+def test_e4_e5_specs_match_paper_grids() -> None:
+    e4 = build_specs(
+        load_config(ROOT / "configs" / "experiments" / "e4_sensitivity_cls.yaml")
+    )
+    e5 = build_specs(
+        load_config(ROOT / "configs" / "experiments" / "e5_sensitivity_reg.yaml")
+    )
+    e4_values = {
+        parameter: sorted(
+            {
+                spec.model_overrides[parameter]
+                for spec in e4
+                if parameter in spec.model_overrides
+            }
+        )
+        for parameter in ("eta", "lambda", "delta_alpha")
+    }
+    e5_values = {
+        parameter: sorted(
+            {
+                spec.model_overrides[parameter]
+                for spec in e5
+                if parameter in spec.model_overrides
+            }
+        )
+        for parameter in ("eta", "lambda", "delta_alpha")
+    }
+    assert e4_values["eta"] == [0, 0.0001, 0.001, 0.01, 1, 10]
+    assert e4_values["lambda"] == [0, 0.0001, 0.001, 0.005, 0.01, 0.05, 0.1]
+    assert e4_values["delta_alpha"] == [0, 0.001, 0.005, 0.01, 1]
+    assert e5_values["eta"] == [0, 0.0001, 0.0005, 0.05, 0.25, 0.5]
+    assert e5_values["lambda"] == [0, 0.25, 0.625, 0.75, 0.875, 1]
+    assert e5_values["delta_alpha"] == [0, 0.001, 0.005, 0.01, 0.025, 1]
+    assert len(e4) == 18
+    assert len(e5) == 18
+
+
 def test_e6_specs_cover_all_tau_values() -> None:
     config = load_config(ROOT / "configs" / "experiments" / "e6_akloms_tau.yaml")
     specs = build_specs(config)
@@ -81,7 +138,7 @@ def test_experiment_names() -> None:
     assert names == [
         "e1_main",
         "e2_small_m",
-        "e3_forgetting",
+        "e3_catastrophic-forgetting",
         "e4_sensitivity_cls",
         "e5_sensitivity_reg",
         "e6_akloms_tau",

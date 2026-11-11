@@ -1,0 +1,24 @@
+experiment: e3_catastrophic-forgetting
+datasets: [syn1, syn2, landmine, spam, syn3, syn4, london]
+methods: [itol, tol, unif_sum, tranol, otb, aklo]
+seeds: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
+
+# Keep the underlying data and train/test split fixed across the ten
+# repetitions.  The run seed only shuffles the task order and the example
+# order inside each task, as described in Section 6 of the paper.
+data_seed: 0
+
+# The synthetic datasets use 50 tasks (25 D1 + 25 D2) and a separate block of
+# 100 test samples per task.  Landmine and Spam use all rows not used for
+# training as the test set.  London keeps the per-school 80/20 split below.
+test_fraction: 0.2
+data_overrides:
+  syn1: {n_tasks: 50, n_samples: 100, n_test: 100}
+  syn2: {n_tasks: 50, n_samples: 100, n_test: 100}
+  syn3: {n_tasks: 50, n_samples: 100, n_test: 100}
+  syn4: {n_tasks: 50, n_samples: 100, n_test: 100}
+  landmine: {n_samples: 150, n_test: -1}
+  spam: {n_samples: 200, n_test: -1}
+
+evaluate_forgetting: false
+evaluate_final_test: true

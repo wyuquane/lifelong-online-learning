@@ -18,7 +18,7 @@ reported digit is reproducible.
 | `syn4` marginal | Identical settings to `syn2` | Same as `syn2`, with regression targets | Follows the paper's statement that `syn4` is the adversarial version of `syn3`. |
 | Task order | Arbitrarily and sequentially provided | Global random shuffle per seed, same order for every method | The paper shuffles task order in each repetition. |
 | Example order | Shuffled per task | Shuffled per task per seed, same order for every method | Matches the paper's protocol. |
-| Held-out split | Not used for E1/E2/E4-E8 | `test_fraction=0.0`; only E3 uses 20% | E1/E2/E4-E8 are pure online experiments; a held-out split would change the stream length and ACE definition. |
+| Held-out split | Not used for E1/E2/E4-E8 | `test_fraction=0.0` for E1/E2/E4-E8; E3 uses a per-task 80/20 train/test split | All experiments except E3 are pure online streams; E3 needs a held-out set to measure post-task generalization. |
 
 The sample pool per synthetic task is at least 300 observations, and a run
 with `m_t < 300` uses the first `m_t` rows of that pool. This makes E2's
@@ -89,10 +89,10 @@ and in the model configs.
 
 | Decision | Paper | Reproduction | Why |
 | --- | --- | --- | --- |
-| Repetitions | 10 per experiment | **1 seed** (`seed=0`) for the committed results | Compute budget. The configs accept multiple seeds; adding them reproduces the paper's repetition protocol. |
+| Repetitions | 10 per experiment | **E3: 10 seeds** (`0..9`); E1/E2/E4-E8: **1 seed** (`seed=0`) | E3 follows the paper's repetition protocol. The other experiments remain at one seed for compute reasons; their configs accept multiple seeds. |
 | E1/E2/E4-E8 evaluation | Online ACE | Online ACE, `test_fraction=0` | Matches the paper. |
-| E3 evaluation | Table 2, "test samples from previous tasks" | Held-out 20% per task plus several diagnostics | The paper does not specify the split or the evaluation instant. See below. |
-| Global shuffle | Random task and example order per repetition | Deterministic shuffle per seed; same for every method | Necessary for a controlled comparison. |
+| E3 evaluation | Table 2, "test samples from previous tasks" | Final model evaluated after all tasks on the test sets of all tasks `1..T` | User decision. This is the strict reading of "after training". See below. |
+| Global shuffle | Random task and example order per repetition | Deterministic shuffle per seed; same for every method | Necessary for a controlled comparison. For E3 the data and split are fixed by `data_seed=0`; only the order changes across seeds. |
 | Runtime | Wall-clock scaling | `train_seconds` around the predict/update loop only; one measurement | Excludes data loading and logging so that W&B does not contaminate the measurement. The AKLOMS cover check uses an exact nearest-cover binary search, so distance comparison stays negligible next to prediction, as the paper assumes. |
 
 The first E8 run used a brute-force `|knowledge base| x |cover|` distance
@@ -104,27 +104,41 @@ it with the pairwise check, and spot checks on E6/E7 reproduce the same ACE and
 cover ratio. E8 was rerun after this change. Wall-clock timing on a shared
 laptop is still noisy, so the E8 numbers remain indicative.
 
-### E3: the forgetting ambiguity
+### E3: catastrophic-forgetting protocol
 
-The paper's Table 2 is lower than Table 1, especially for AKLO. One plausible
-reading is that after training, the model is evaluated on the training samples
-of previous tasks. Another is that a held-out test set is used at the end of
-each task. The paper does not say which.
+The paper's Table 2 says it feeds "the whole test set constituted of samples
+from previous tasks to the model after training". Following the user decision,
+E3 implements the final-state reading of that sentence:
 
-Our E3 uses a 20% held-out test split per task (an assistant choice, not a
-user decision) and reports:
+* syn1-syn4 use 50 tasks (25 D1 + 25 D2), 100 training samples and 100 separate
+  test samples per task;
+* Landmine uses 150 training rows per task and every remaining row as test;
+* Spam uses 200 training rows per user and every remaining row as test;
+* London keeps an 80/20 split per school;
+* training follows E1 exactly;
+* after the last task, the final predictor is evaluated on the test set of
+  every task `1..T`. ITOL uses the task-specific snapshot, TOL the final online
+  model, Unif_Sum the average of all task snapshots, TranOL the final target
+  model, OTB the final weighted ensemble, and AKLO the full
+  `alpha * meta + (1 - alpha) * current` state;
+* the experiment is repeated with seeds `0..9`. The underlying data and split
+  are fixed by `data_seed=0`; only task and example order change, as in the
+  paper's repetition description;
+* the primary metric is `final_test_ace_task_mean`; `final_test_ace_pooled`
+  and the prequential ACE are secondary context.
 
-* prequential ACE (comparable to Table 1);
-* mean current-task held-out test ACE;
-* mean old-task held-out test ACE;
-* final model on all held-out test tasks;
-* final model on all training samples (the "re-feed training data" reading).
+The old per-task E3 protocol, its `test_ace_*` W&B runs, and the local
+`results/e3_task_test` directory were removed. E3 now runs under group
+`e3_catastrophic-forgetting` with names
+`e3_catastrophic-forgetting-<dataset>-<method>-s<seed>`. OTB is undefined for
+regression.
 
-On `syn1`/AKLO, the prequential ACE is about 12.5%, the mean current-task test
-ACE is about 15.0%, the mean old-task test ACE is about 39.1%, the final
-held-out test ACE is about 36.6%, and the final training-data ACE is about
-36.4%. The paper's Table 2 value is 8.78. The gap is documented rather than
-hidden; see `reports/report.md` and the discussion in the README.
+The paper's Table 2 numbers are close to its Table 1 numbers, which suggests
+the original implementation may have evaluated each task's model shortly after
+training rather than only the final state. Our stricter final-state protocol
+therefore produces much higher forgetting for methods whose final state is
+task-specific (especially AKLO). This is an honest consequence of the chosen
+reading, not a claim that the paper's numbers are wrong.
 
 ## 6. Data acquisition
 
@@ -151,10 +165,12 @@ failures:
    loss and data scale. Our values (e.g. AKLO 1.06 on `syn3`) are internally
    consistent with the generated targets. This remains an unresolved
    inconsistency in the paper's reported numbers.
-3. **E3 final-model test ACE is much worse than the paper's Table 2.** The
-   meta weights adapt to the last task; applying the final model to all
-   earlier tasks is a harsh diagnostic. The final training-data ACE is closer
-   to the paper's reading but is still not an exact match.
+3. **E3 final-state results differ from Table 2.** We follow the strict
+   reading in which the final model is evaluated on all task test sets after
+   the whole stream. The paper's Table 2 values are very close to its Table 1
+   values, which suggests a per-task evaluation was used in the original
+   implementation. The comparison is therefore qualitative; the reproduction
+   reports the forgetting that the final state actually exhibits.
 4. **OTB and TranOL are approximations**, so their absolute numbers should not
    be compared digit-for-digit with the paper.
 

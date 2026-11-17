@@ -3,12 +3,35 @@
 from __future__ import annotations
 
 import math
+from dataclasses import dataclass
 from typing import Any
 
 import numpy as np
 
 from .linear import LinearSnapshot, OnlineLinearModel
 from .meta import MetaHypothesis
+
+
+@dataclass
+class AKLOSnapshotPredictor:
+    """Frozen AKLO predictor saved at the end of one task.
+
+    ``meta`` contains the knowledge base used during the task and the beta
+    weights reached at the end of the task.  ``current`` is the task's own
+    predictor and ``alpha`` the mixing coefficient at the end of the task.
+    ``predict`` is read-only: no parameter is updated during evaluation.
+    """
+
+    meta: MetaHypothesis | None
+    current: LinearSnapshot
+    alpha: float
+
+    def predict(self, x: Any) -> float:
+        current_prediction = self.current.predict(x)
+        if self.meta is None:
+            return current_prediction
+        meta_prediction = self.meta.predict(x)
+        return self.alpha * meta_prediction + (1.0 - self.alpha) * current_prediction
 
 
 class AKLO:
@@ -42,6 +65,7 @@ class AKLO:
         self.meta_loss = str(self.config.get("meta_loss", "squared"))
 
         self.snapshots: list[LinearSnapshot] = []
+        self.task_snapshots: list[AKLOSnapshotPredictor] = []
         self.current: OnlineLinearModel | None = None
         self.meta: MetaHypothesis | None = None
         self.alpha = 1.0
@@ -136,6 +160,24 @@ class AKLO:
         snapshot = self.current.snapshot(
             task_id=self.current_task_id, category=self.current_category
         )
+        # Freeze the predictor as it stands at the end of this task.  The
+        # meta-hypothesis already contains the knowledge base used during the
+        # task (tasks 1..q-1) and the beta weights reached after the last
+        # observation; f_q is the current predictor.  The live knowledge base
+        # is updated only after this snapshot has been taken.
+        if self.meta is not None:
+            meta = MetaHypothesis(
+                self.meta.snapshots,
+                epsilon=self.meta.epsilon,
+                loss=self.meta.loss,
+            )
+            meta.beta = self.meta.beta.copy()
+            meta.E = self.meta.E.copy()
+        else:
+            meta = None
+        self.task_snapshots.append(
+            AKLOSnapshotPredictor(meta, snapshot, float(self.alpha))
+        )
         self.snapshots.append(snapshot)
         self._snapshot_matrix = None
         return snapshot
@@ -156,6 +198,11 @@ class AKLO:
     def selected_models(self) -> list[LinearSnapshot]:
         return list(self.snapshots)
 
-    def final_predictor(self, task_index: int) -> "AKLO":
-        """The final dual predictor ``alpha * meta + (1 - alpha) * current``."""
-        return self
+    def final_predictor(self, task_index: int) -> AKLOSnapshotPredictor:
+        """Frozen predictor saved at the end of ``task_index``."""
+        if task_index < 0 or task_index >= len(self.task_snapshots):
+            raise IndexError(
+                f"AKLO has {len(self.task_snapshots)} task snapshots, "
+                f"cannot select index {task_index}"
+            )
+        return self.task_snapshots[task_index]

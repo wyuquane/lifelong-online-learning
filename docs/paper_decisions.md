@@ -91,7 +91,7 @@ and in the model configs.
 | --- | --- | --- | --- |
 | Repetitions | 10 per experiment | **E3: 10 seeds** (`0..9`); E1/E2/E4-E8: **1 seed** (`seed=0`) | E3 follows the paper's repetition protocol. The other experiments remain at one seed for compute reasons; their configs accept multiple seeds. |
 | E1/E2/E4-E8 evaluation | Online ACE | Online ACE, `test_fraction=0` | Matches the paper. |
-| E3 evaluation | Table 2, "test samples from previous tasks" | Final model evaluated after all tasks on the test sets of all tasks `1..T` | User decision. This is the strict reading of "after training". See below. |
+| E3 evaluation | Table 2, "test samples from previous tasks" | Method-specific predictor: frozen per-task snapshot for ITOL/AKLO/TranOL/OTB; final online model for TOL; average of task snapshots for Unif_Sum | User decision (17 Nov 2026). See below. |
 | Global shuffle | Random task and example order per repetition | Deterministic shuffle per seed; same for every method | Necessary for a controlled comparison. For E3 the data and split are fixed by `data_seed=0`; only the order changes across seeds. |
 | Runtime | Wall-clock scaling | `train_seconds` around the predict/update loop only; one measurement | Excludes data loading and logging so that W&B does not contaminate the measurement. The AKLOMS cover check uses an exact nearest-cover binary search, so distance comparison stays negligible next to prediction, as the paper assumes. |
 
@@ -104,11 +104,12 @@ it with the pairwise check, and spot checks on E6/E7 reproduce the same ACE and
 cover ratio. E8 was rerun after this change. Wall-clock timing on a shared
 laptop is still noisy, so the E8 numbers remain indicative.
 
-### E3: catastrophic-forgetting protocol
+### E3: method-specific catastrophic-forgetting protocol
 
 The paper's Table 2 says it feeds "the whole test set constituted of samples
 from previous tasks to the model after training". Following the user decision,
-E3 implements the final-state reading of that sentence:
+E3 trains once on the whole stream and evaluates each task's test set with the
+method's natural predictor:
 
 * syn1-syn4 use 50 tasks (25 D1 + 25 D2), 100 training samples and 100 separate
   test samples per task;
@@ -116,29 +117,43 @@ E3 implements the final-state reading of that sentence:
 * Spam uses 200 training rows per user and every remaining row as test;
 * London keeps an 80/20 split per school;
 * training follows E1 exactly;
-* after the last task, the final predictor is evaluated on the test set of
-  every task `1..T`. ITOL uses the task-specific snapshot, TOL the final online
-  model, Unif_Sum the average of all task snapshots, TranOL the final target
-  model, OTB the final weighted ensemble, and AKLO the full
-  `alpha * meta + (1 - alpha) * current` state;
+* the predictor for task q is method-specific:
+  * ITOL: the task-specific snapshot f_q;
+  * TOL: the single final online model;
+  * Unif_Sum: the uniform average of all task snapshots;
+  * TranOL: the frozen source/target pair at the end of task q (source
+    f_{q-1}, target f_q, 0.5/0.5; the first task uses the target only);
+  * OTB: the frozen weighted ensemble of the 10 weak learners and the
+    boosting weights at the end of task q;
+  * AKLO: the frozen snapshot at the end of task q, containing the knowledge
+    base f_1..f_{q-1} used during the task, beta at the end of the task, the
+    current predictor f_q, and alpha at the end of the task (the first task
+    uses f_1 only);
+* the snapshots are immutable: no parameter is updated during the test pass;
 * the experiment is repeated with seeds `0..9`. The underlying data and split
   are fixed by `data_seed=0`; only task and example order change, as in the
   paper's repetition description;
 * the primary metric is `final_test_ace_task_mean`; `final_test_ace_pooled`
   and the prequential ACE are secondary context.
 
-The old per-task E3 protocol, its `test_ace_*` W&B runs, and the local
-`results/e3_task_test` directory were removed. E3 now runs under group
+This is a hybrid protocol: four methods use per-task snapshots, TOL uses the
+final model, and Unif_Sum averages all snapshots. It is closer to the paper's
+likely per-task evaluation than the previous strict final-state protocol, but
+the evaluation instant is not identical across methods.
+
+The old strict final-state results for AKLO, TranOL and OTB, including their
+W&B runs, were deleted on 17 Nov 2026 and rerun with the frozen per-task
+predictors; ITOL, TOL and Unif_Sum were kept. The earlier per-task E3 protocol
+and its `e3_task_test` group were removed before that. E3 now runs under group
 `e3_catastrophic-forgetting` with names
 `e3_catastrophic-forgetting-<dataset>-<method>-s<seed>`. OTB is undefined for
 regression.
 
 The paper's Table 2 numbers are close to its Table 1 numbers, which suggests
-the original implementation may have evaluated each task's model shortly after
-training rather than only the final state. Our stricter final-state protocol
-therefore produces much higher forgetting for methods whose final state is
-task-specific (especially AKLO). This is an honest consequence of the chosen
-reading, not a claim that the paper's numbers are wrong.
+the original implementation evaluated each task's model shortly after
+training. The per-task snapshots for ITOL/AKLO/TranOL/OTB follow that reading;
+TOL and Unif_Sum remain stricter. The comparison with the paper is therefore
+qualitative.
 
 ## 6. Data acquisition
 
@@ -165,12 +180,12 @@ failures:
    loss and data scale. Our values (e.g. AKLO 1.06 on `syn3`) are internally
    consistent with the generated targets. This remains an unresolved
    inconsistency in the paper's reported numbers.
-3. **E3 final-state results differ from Table 2.** We follow the strict
-   reading in which the final model is evaluated on all task test sets after
-   the whole stream. The paper's Table 2 values are very close to its Table 1
-   values, which suggests a per-task evaluation was used in the original
-   implementation. The comparison is therefore qualitative; the reproduction
-   reports the forgetting that the final state actually exhibits.
+3. **E3 uses method-specific predictors.** ITOL, AKLO, TranOL and OTB are
+   evaluated with frozen per-task snapshots, TOL with its final online model,
+   and Unif_Sum with the average of all task snapshots. This hybrid protocol
+   follows the user decision of 17 Nov 2026 and is closer to the paper's likely
+   per-task evaluation, but the evaluation instant is not uniform across
+   methods.
 4. **OTB and TranOL are approximations**, so their absolute numbers should not
    be compared digit-for-digit with the paper.
 

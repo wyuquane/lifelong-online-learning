@@ -172,13 +172,13 @@ The E4/E5 sweeps use the exact paper figure legends:
 
 E1/E2/E4-E8 use `test_fraction: 0.0`: every task is a pure online stream, as
 in the paper's ACE definition. E3 is the exception: each task has a separate
-held-out test set, and the final model is evaluated on all of them.
+held-out test set, evaluated with a method-specific predictor.
 
 ### E3 protocol
 
-E3 implements the paper's final-state reading of Table 2: train once on the
-whole stream, then feed the test sets of every task `1..T` to the final model.
-The datasets and splits are:
+E3 follows the paper's Table 2 setup: train once on the whole stream, then
+evaluate each task's held-out test set. The predictor used for task q is
+method-specific. The datasets and splits are:
 
 | Dataset | Tasks | Train per task | Test per task |
 | --- | ---: | ---: | ---: |
@@ -193,35 +193,47 @@ the task as test. London keeps a per-school 80/20 split. Training then follows
 E1 exactly: same online loop, same hyperparameters, and the same task/example
 shuffles for every method.
 
-After the last task, each method uses its method-specific final predictor:
+The predictor for task q is:
 
-* **ITOL**: the task-specific snapshot for the evaluated task.
-* **TOL**: the single final online model.
-* **Unif_Sum**: the uniform average of all task snapshots.
-* **TranOL**: the final target model (without the source blend).
-* **OTB**: the final weighted ensemble.
-* **AKLO**: the full `alpha * meta + (1 - alpha) * current` final state.
+* **ITOL**: the task-specific snapshot f_q.
+* **TOL**: the single final online model (the same model for every task).
+* **Unif_Sum**: the uniform average of all task snapshots f_1..f_T.
+* **TranOL**: the frozen source/target pair at the end of task q: source
+  f_{q-1} and target f_q, combined 0.5/0.5. The first task uses f_1 only.
+* **OTB**: the frozen weighted ensemble of the 10 weak learners at the end of
+  task q, using the boosting weights at that instant. The first task uses the
+  ensemble after task 1.
+* **AKLO**: the frozen snapshot at the end of task q. It contains the
+  knowledge base f_1..f_{q-1} used during the task, the meta weights beta at
+  the end of the task, the current predictor f_q, and alpha at the end of the
+  task. The first task uses f_1 only.
 * **AKLOMS**: the final AKLO predictor over the selected knowledge base
   (AKLOMS is not part of Table 2).
 
-The primary metric is `final_test_ace_task_mean`, the mean over tasks of the
-final-state test ACE. `final_test_ace_pooled` is secondary and prequential ACE
-is reported for context. Classification ACE is multiplied by 100; regression
-ACE is on the target scale. OTB is undefined for regression.
+The snapshots are immutable: prediction never calls `update`, so no parameter
+changes during the test pass. The primary metric is
+`final_test_ace_task_mean`, the mean over tasks of the test ACE.
+`final_test_ace_pooled` is secondary and prequential ACE is reported for
+context. Classification ACE is multiplied by 100; regression ACE is on the
+target scale. OTB is undefined for regression.
 
-Two properties follow from this design. TOL and TranOL have identical
-final-state rows: both apply the same online updates to the final target model,
-and TranOL's source/target blend changes only the prediction, not the update.
+E3 is therefore a method-specific/hybrid protocol: ITOL, AKLO, TranOL and OTB
+use per-task snapshots, TOL uses its final online model, and Unif_Sum averages
+all snapshots. This matches the natural prediction rule of each method and is
+closer to the paper's likely per-task reading of Table 2. TOL and Unif_Sum are
+the stricter predictors; their rows are not directly comparable to the
+per-task rows in terms of evaluation instant.
+
 On syn2 (and the regression variant syn4) the D2 tasks reuse the D1 marginal
-but flip the labels, so a single final predictor cannot fit both distributions;
-syn2's classification methods therefore sit near chance.
+but flip the labels, so a single predictor cannot fit both distributions;
+syn2's classification methods therefore sit near chance unless they use
+task-specific snapshots.
 
 The paper's Table 2 values are close to its Table 1 values, which suggests the
-original implementation may have evaluated each task shortly after training
-rather than only at the end. The final-state protocol requested for this
-reproduction is a stricter catastrophic-forgetting test, so the comparison is
-qualitative. The old per-task E3 protocol and its `e3_task_test` W&B runs were
-removed.
+original implementation evaluated each task shortly after training. With
+per-task snapshots for four methods, the reproduction is closer to that
+reading; the remaining differences are discussed in the README. The old
+per-task E3 protocol and its `e3_task_test` W&B runs were removed.
 
 ## 7. Repetitions and seeds
 

@@ -8,6 +8,7 @@ the approximations are documented in the README.
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 from typing import Any
 
 import numpy as np
@@ -199,6 +200,24 @@ class UnifSum(_Base):
         return list(self.snapshots)
 
 
+@dataclass
+class TransOLSnapshotPredictor:
+    """Frozen source/target predictor for one task.
+
+    The source is the previous task's final model and the target is the model
+    trained online on the current task.  Prediction is the fixed 0.5/0.5
+    combination used during training; it never updates either model.
+    """
+
+    source: LinearSnapshot | None
+    target: LinearSnapshot
+
+    def predict(self, x: Any) -> float:
+        if self.source is None:
+            return self.target.predict(x)
+        return 0.5 * self.source.predict(x) + 0.5 * self.target.predict(x)
+
+
 class TranOL(_Base):
     """Online transfer learning from the previous task.
 
@@ -215,6 +234,7 @@ class TranOL(_Base):
         self.current: OnlineLinearModel | None = None
         self.source: LinearSnapshot | None = None
         self.snapshots: list[LinearSnapshot] = []
+        self.task_predictors: list[TransOLSnapshotPredictor] = []
 
     def start_task(self, *args, **kwargs) -> None:
         super().start_task(*args, **kwargs)
@@ -239,9 +259,12 @@ class TranOL(_Base):
         assert self.current is not None
         snapshot = self.current.snapshot(self.current_task_id, self.current_category)
         self.snapshots.append(snapshot)
-        # Keep ``source`` pointing at the previous task so that the post-task
-        # evaluation uses the same source/target combination as the online
-        # prediction. ``start_task`` advances the source for the next task.
+        # Freeze the source/target pair as it stands at the end of this task.
+        # ``source`` still points at the previous task here; ``start_task``
+        # advances it only for the next task.
+        self.task_predictors.append(
+            TransOLSnapshotPredictor(self.source, snapshot)
+        )
         return snapshot
 
     def state(self) -> dict[str, float | int | str | None]:
@@ -256,11 +279,30 @@ class TranOL(_Base):
     def selected_models(self) -> list[LinearSnapshot]:
         return list(self.snapshots)
 
-    def final_predictor(self, task_index: int) -> OnlineLinearModel:
-        """The final target model, without the previous-task source blend."""
-        if self.current is None:
-            raise RuntimeError("start_task must be called before prediction")
-        return self.current
+    def final_predictor(self, task_index: int) -> TransOLSnapshotPredictor:
+        """Frozen source/target predictor saved at the end of ``task_index``."""
+        if task_index < 0 or task_index >= len(self.task_predictors):
+            raise IndexError(
+                f"TranOL has {len(self.task_predictors)} task predictors, "
+                f"cannot select index {task_index}"
+            )
+        return self.task_predictors[task_index]
+
+
+@dataclass
+class OTBSnapshotPredictor:
+    """Frozen weighted ensemble of weak learners for one task.
+
+    ``learners`` are the weak learners at the end of the task and ``weights``
+    are the boosting weights at the same instant.  ``predict`` is read-only.
+    """
+
+    learners: list[LinearSnapshot]
+    weights: np.ndarray
+
+    def predict(self, x: Any) -> float:
+        predictions = np.asarray([learner.predict(x) for learner in self.learners])
+        return float(np.dot(self.weights, predictions))
 
 
 class OTB(_Base):
@@ -281,6 +323,7 @@ class OTB(_Base):
         self.weights = np.full(self.n_learners, 1.0 / self.n_learners)
         self.E = np.zeros(self.n_learners, dtype=np.float64)
         self.snapshots: list[LinearSnapshot] = []
+        self.task_predictors: list[OTBSnapshotPredictor] = []
 
     def _make_learners(self) -> list[OnlineLinearModel]:
         learners = []
@@ -328,6 +371,12 @@ class OTB(_Base):
             learner.snapshot(self.current_task_id, self.current_category)
             for learner in self.learners
         ]
+        # Freeze the ensemble and its boosting weights at the end of this
+        # task.  The snapshots are immutable copies, so the predictor remains
+        # valid when ``self.snapshots`` is overwritten by the next task.
+        self.task_predictors.append(
+            OTBSnapshotPredictor(list(self.snapshots), self.weights.copy())
+        )
         return self.snapshots[0]
 
     def state(self) -> dict[str, float | int | str | None]:
@@ -344,3 +393,12 @@ class OTB(_Base):
 
     def selected_models(self) -> list[LinearSnapshot]:
         return list(self.snapshots)
+
+    def final_predictor(self, task_index: int) -> OTBSnapshotPredictor:
+        """Frozen weighted ensemble saved at the end of ``task_index``."""
+        if task_index < 0 or task_index >= len(self.task_predictors):
+            raise IndexError(
+                f"OTB has {len(self.task_predictors)} task predictors, "
+                f"cannot select index {task_index}"
+            )
+        return self.task_predictors[task_index]

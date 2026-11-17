@@ -209,13 +209,14 @@ def evaluate_final_test_sets(
     task_type: str,
     logger: WandbLogger | None = None,
 ) -> dict[str, float]:
-    """Evaluate the final state on the test set of every task.
+    """Evaluate every task's test set with the method-specific predictor.
 
     This is the paper's Table 2 protocol: train once on the whole stream, then
     feed the model the test samples of all tasks ``1..T`` and report the
     task-averaged ACE.  The predictor is selected by
-    ``model.final_predictor(task_index)`` so that ITOL can use its task-specific
-    snapshot while the other methods use their final online state.
+    ``model.final_predictor(task_index)``: ITOL, AKLO, TranOL and OTB return a
+    frozen per-task snapshot, TOL returns its final online model, and Unif_Sum
+    returns the average of all task snapshots.  No parameter is updated here.
     """
     per_task: list[float] = []
     total_error = 0.0

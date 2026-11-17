@@ -457,17 +457,17 @@ def table_e2(results: list[dict[str, Any]]) -> str:
 
 
 def table_e3(results: list[dict[str, Any]]) -> str:
-    """E3 Table 2 layout: final-state ACE on all task test sets."""
+    """E3 Table 2 layout: method-specific ACE on all task test sets."""
     return _method_by_dataset_table(results, "final_test_ace_task_mean")
 
 
 def table_e3_pooled(results: list[dict[str, Any]]) -> str:
-    """Secondary E3 metric: pooled final-state test ACE."""
+    """Secondary E3 metric: pooled test ACE."""
     return _method_by_dataset_table(results, "final_test_ace_pooled")
 
 
 def table_e3_paper(results: list[dict[str, Any]]) -> str:
-    """Paper Table 2 next to our final-state test ACE."""
+    """Paper Table 2 next to our test ACE."""
     datasets = [name for name in DATASET_ORDER if name in PAPER_TABLE2]
     methods = PAPER_METHODS
     headers = ["Dataset", "Method", "Paper Table 2", "Our test ACE"]

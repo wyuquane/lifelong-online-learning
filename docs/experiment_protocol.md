@@ -248,7 +248,7 @@ on the machine that ran the experiment.
 ## 8. Runtime measurement
 
 `train_seconds` wraps only the per-sample `predict` + `update` loop. Data
-loading, model construction, E3 final-state evaluation, JSON serialization,
+loading, model construction, E3 test evaluation, JSON serialization,
 and W&B logging are excluded. `total_seconds` includes all of the run after data
 loading. E8 reports `train_seconds`.
 

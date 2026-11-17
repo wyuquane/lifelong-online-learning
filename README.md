@@ -50,7 +50,7 @@ the local files.
 | --- | --- | --- | --- | --- |
 | E1 | Table 1: main comparison | [`e1_main.yaml`](configs/experiments/e1_main.yaml) | `python scripts/run.py --experiment e1_main` | [group](https://forge.coreweave.com/wandb/AI-Athena-Lab/AKLO-lifelong-online-learning/groups/e1_main) |
 | E2 | Figure 3: effect of `m_t` | [`e2_small_m.yaml`](configs/experiments/e2_small_m.yaml) | `python scripts/run.py --experiment e2_small_m` | [group](https://forge.coreweave.com/wandb/AI-Athena-Lab/AKLO-lifelong-online-learning/groups/e2_small_m) |
-| E3 | Table 2: catastrophic forgetting (final state, 10 seeds) | [`e3_catastrophic-forgetting.yaml`](configs/experiments/e3_catastrophic-forgetting.yaml) | `python scripts/run.py --experiment e3_catastrophic-forgetting` | [group](https://forge.coreweave.com/wandb/AI-Athena-Lab/AKLO-lifelong-online-learning/groups/e3_catastrophic-forgetting) |
+| E3 | Table 2: catastrophic forgetting (per-task snapshots, 10 seeds) | [`e3_catastrophic-forgetting.yaml`](configs/experiments/e3_catastrophic-forgetting.yaml) | `python scripts/run.py --experiment e3_catastrophic-forgetting` | [group](https://forge.coreweave.com/wandb/AI-Athena-Lab/AKLO-lifelong-online-learning/groups/e3_catastrophic-forgetting) |
 | E4 | Figure 4: classification sensitivity | [`e4_sensitivity_cls.yaml`](configs/experiments/e4_sensitivity_cls.yaml) | `python scripts/run.py --experiment e4_sensitivity_cls` | [group](https://forge.coreweave.com/wandb/AI-Athena-Lab/AKLO-lifelong-online-learning/groups/e4_sensitivity_cls) |
 | E5 | Figure 5: regression sensitivity | [`e5_sensitivity_reg.yaml`](configs/experiments/e5_sensitivity_reg.yaml) | `python scripts/run.py --experiment e5_sensitivity_reg` | [group](https://forge.coreweave.com/wandb/AI-Athena-Lab/AKLO-lifelong-online-learning/groups/e5_sensitivity_reg) |
 | E6 | Table 3: AKLOMS `tau` | [`e6_akloms_tau.yaml`](configs/experiments/e6_akloms_tau.yaml) | `python scripts/run.py --experiment e6_akloms_tau` | [group](https://forge.coreweave.com/wandb/AI-Athena-Lab/AKLO-lifelong-online-learning/groups/e6_akloms_tau) |
@@ -123,63 +123,74 @@ below.
 
 See [`docs/paper_decisions.md`](docs/paper_decisions.md) for the complete list.
 
-## E3: catastrophic forgetting (final-state protocol)
+## E3: catastrophic forgetting (paper Table 2)
 
-E3 follows the paper's Table 2 sentence: train once on the whole stream, then
-feed the test sets of all tasks `1..T` to the final model. The synthetic
-datasets use 50 tasks (25 D1 + 25 D2), 100 training samples and 100 separate
-test samples per task. Landmine uses 150 training rows per task and every
-remaining row as test; Spam uses 200 training rows per user and every remaining
-row as test. London keeps an 80/20 split per school. The experiment is repeated
-with seeds `0..9`; the data and split are fixed by `data_seed=0`, and only the
-task/example order changes, matching the paper's repetition description. The
-matrix contains 390 runs (39 method/dataset combinations per seed).
+E3 trains once on the whole stream and evaluates each task's test set with a
+method-specific predictor. The synthetic datasets use 50 tasks (25 D1 + 25 D2),
+100 training samples and 100 separate test samples per task. Landmine uses 150
+training rows per task and every remaining row as test; Spam uses 200 training
+rows per user and every remaining row as test. London keeps an 80/20 split per
+school. The experiment is repeated with seeds `0..9`; the data and split are
+fixed by `data_seed=0`, and only the task/example order changes, matching the
+paper's repetition description. The matrix contains 390 runs (39
+method/dataset combinations per seed).
 
-The final predictor is method-specific: ITOL uses the task-specific snapshot,
-TOL the final online model, Unif_Sum the average of all task snapshots, TranOL
-the final target model, OTB the final weighted ensemble, and AKLO the full
-`alpha * meta + (1 - alpha) * current` state. The primary metric is the
-task-averaged test ACE (`final_test_ace_task_mean`), with pooled test ACE
-(`final_test_ace_pooled`) as secondary. Classification ACE is multiplied by
-100; regression ACE is on the target scale. OTB is undefined for regression.
-The old per-task E3 protocol and its `e3_task_test` W&B runs were removed; the
-new group is
+The predictor for task q is method-specific:
+
+* **ITOL** uses the task-specific snapshot `f_q`.
+* **TOL** uses the single final online model.
+* **Unif_Sum** averages all task snapshots `f_1..f_T`.
+* **TranOL** uses the frozen source/target pair at the end of task q
+  (`f_{q-1}` + `f_q`, 0.5/0.5; the first task uses the target only).
+* **OTB** uses the frozen weighted ensemble of 10 weak learners and the
+  boosting weights at the end of task q.
+* **AKLO** uses the frozen snapshot at the end of task q: the knowledge base
+  `f_1..f_{q-1}` used during the task, the meta weights `beta` at the end of
+  the task, the current predictor `f_q`, and `alpha` at the end of the task.
+  The first task uses `f_1` only.
+
+The snapshots are immutable: prediction never calls `update`, so no parameter
+changes during the test pass. The primary metric is the task-averaged test ACE
+(`final_test_ace_task_mean`), with pooled test ACE (`final_test_ace_pooled`) as
+secondary. Classification ACE is multiplied by 100; regression ACE is on the
+target scale. OTB is undefined for regression. The old per-task E3 protocol
+and its `e3_task_test` W&B runs were removed; the current group is
 [`e3_catastrophic-forgetting`](https://forge.coreweave.com/wandb/AI-Athena-Lab/AKLO-lifelong-online-learning/groups/e3_catastrophic-forgetting).
 
-Task-averaged final-state test ACE (%), mean ± standard deviation over seeds
-0–9. Lower is better; the best method per dataset is bold. The last column is
-the paper's Table 2 AKLO value.
+Task-averaged test ACE (%), mean ± standard deviation over seeds 0–9. Lower is
+better; the best method per dataset is bold. The last column is the paper's
+Table 2 AKLO value.
 
 | Dataset | ITOL | TOL | Unif_Sum | TranOL | OTB | AKLO (ours) | AKLO (paper) |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
-| syn1 | **35.87 ± 2.50** | 38.32 ± 10.02 | 50.01 ± 0.20 | 38.32 ± 10.02 | 37.48 ± 8.62 | 37.73 ± 6.63 | 8.78 |
-| syn2 | **33.91 ± 1.89** | 49.87 ± 0.60 | 49.90 ± 0.49 | 49.87 ± 0.60 | 50.01 ± 0.59 | 49.85 ± 0.26 | 8.34 |
-| Landmine | 37.95 ± 1.43 | 46.79 ± 13.53 | 55.44 ± 2.09 | 46.79 ± 13.53 | 38.14 ± 11.43 | **37.36 ± 15.04** | 6.78 |
-| Spam | 20.00 ± 1.75 | 22.93 ± 7.81 | 20.81 ± 4.85 | 22.93 ± 7.81 | **15.37 ± 4.16** | 22.58 ± 6.81 | 9.97 |
-| syn3 | 6.90 ± 0.66 | 6.76 ± 4.16 | **1.77 ± 0.56** | 6.76 ± 4.16 | – | 2.69 ± 0.81 | 3.58 |
-| syn4 | 4.83 ± 0.36 | 4.28 ± 2.99 | **1.29 ± 0.15** | 4.28 ± 2.99 | – | 1.40 ± 0.15 | 2.34 |
-| London | **12.77 ± 0.03** | 13.86 ± 0.95 | 14.75 ± 0.03 | 13.86 ± 0.95 | – | 13.16 ± 0.71 | 9.57 |
+| syn1 | 35.87 ± 2.50 | 38.32 ± 10.02 | 50.01 ± 0.20 | 37.07 ± 1.90 | **18.37 ± 1.76** | 19.61 ± 2.93 | 8.78 |
+| syn2 | 33.91 ± 1.89 | 49.87 ± 0.60 | 49.90 ± 0.49 | 42.22 ± 1.86 | 35.47 ± 1.25 | **16.50 ± 2.79** | 8.34 |
+| Landmine | 37.95 ± 1.43 | 46.79 ± 13.53 | 55.44 ± 2.09 | 40.07 ± 2.61 | **33.06 ± 1.86** | 33.25 ± 1.27 | 6.78 |
+| Spam | 20.00 ± 1.75 | 22.93 ± 7.81 | 20.81 ± 4.85 | 18.82 ± 1.70 | **15.59 ± 1.63** | 19.67 ± 2.70 | 9.97 |
+| syn3 | 6.90 ± 0.66 | 6.76 ± 4.16 | 1.77 ± 0.56 | 5.39 ± 0.72 | – | **1.40 ± 0.31** | 3.58 |
+| syn4 | 4.83 ± 0.36 | 4.28 ± 2.99 | 1.29 ± 0.15 | 3.49 ± 0.36 | – | **1.28 ± 0.23** | 2.34 |
+| London | 12.77 ± 0.03 | 13.86 ± 0.95 | 14.75 ± 0.03 | 12.65 ± 0.07 | – | **11.63 ± 0.08** | 9.57 |
 
-Under this stricter protocol AKLO is best only on Landmine. ITOL wins on
-syn1/syn2 because it keeps a separate model per task, OTB wins on Spam, and
-Unif_Sum wins on the regression datasets. The gap to the paper is largest for
-AKLO (e.g. syn1 37.73 vs 8.78), consistent with the paper's Table 2 values
-being very close to its Table 1 values and therefore likely measured per task
-rather than only at the end. This is an honest consequence of the chosen
-protocol; the comparison with the paper is qualitative.
+E3 is a hybrid protocol: ITOL, AKLO, TranOL and OTB use per-task snapshots,
+while TOL and Unif_Sum use stricter global predictors. Under it AKLO is best on
+four of seven datasets (syn2, syn3, syn4, London); OTB wins syn1, Landmine and
+Spam. The gap to the paper remains largest for AKLO (e.g. syn1 19.61 vs 8.78),
+but the per-task snapshots close most of the previous gap. The comparison with
+the paper is qualitative because the paper's Table 2 values are close to its
+Table 1 values.
 
-Two properties of the final-state protocol are worth stating explicitly:
+Two properties are worth stating explicitly:
 
-* **TOL and TranOL coincide.** Both perform the same online updates on the
-  final target model, and TranOL's source/target blend affects only its
-  prediction, not the update. Under the "final target model" rule the two rows
-  are therefore identical by construction.
+* **TOL is the strictest predictor.** It applies the single final online model
+  to every task, so its rows show the full catastrophic forgetting of a shared
+  predictor. Unif_Sum averages all snapshots and is also global.
 * **syn2 is adversarial.** Its D2 tasks reuse the D1 marginal but flip the
-  labels, so no single final linear predictor can fit both distributions;
-  every non-ITOL method sits near chance (50%). This is expected, not a bug.
+  labels, so a single global linear predictor cannot fit both distributions;
+  TOL and Unif_Sum sit near chance. The per-task methods retain task-specific
+  models and are therefore much lower.
 
 See [`docs/experiment_protocol.md`](docs/experiment_protocol.md) and
-[`docs/paper_decisions.md`](docs/paper_decisions.md#e3-catastrophic-forgetting-protocol).
+[`docs/paper_decisions.md`](docs/paper_decisions.md#e3-method-specific-catastrophic-forgetting-protocol).
 
 ## Other experiments
 
@@ -219,8 +230,8 @@ All tracked runs are in the public project
 * **Server:** `https://forge.coreweave.com/wandb/AI-Athena-Lab/AKLO-lifelong-online-learning`
 
 Each run logs its config, per-task ACE, cumulative ACE, model state, E3
-per-task diagnostics, the final-state E3 test metrics, and sample-level running
-ACE. No artifacts are uploaded.
+per-task diagnostics, the E3 test metrics, and sample-level running ACE. No
+artifacts are uploaded.
 See
 [`docs/wandb.md`](docs/wandb.md) for setup, commands, and the run-naming
 convention.

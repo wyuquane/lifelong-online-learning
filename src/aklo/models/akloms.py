@@ -184,3 +184,12 @@ class AKLOMS(AKLO):
 
     def selected_models(self) -> list[LinearSnapshot]:
         return self._cover_snapshots()
+
+    def final_predictor(self, task_index: int) -> "AKLOMS":
+        """AKLOMS is not part of the Table 2 comparison.
+
+        The E3 per-task snapshot protocol is defined for the six Table 2
+        methods only.  Returning the live model preserves the previous
+        behaviour for diagnostic use.
+        """
+        return self

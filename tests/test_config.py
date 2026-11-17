@@ -45,8 +45,10 @@ def test_e1_specs_skip_unsupported_models() -> None:
     config = load_config(ROOT / "configs" / "experiments" / "e1_main.yaml")
     specs = build_specs(config)
     # 4 classification datasets x 6 methods, plus 3 regression datasets x
-    # 5 methods (OTB is classification-only).
-    assert len(specs) == 4 * 6 + 3 * 5
+    # 5 methods (OTB is classification-only), repeated over 10 seeds.
+    assert len(specs) == (4 * 6 + 3 * 5) * 10
+    assert {spec.seed for spec in specs} == set(range(10))
+    assert all(spec.data_seed == 0 for spec in specs)
     regression_methods = {spec.method for spec in specs if spec.dataset == "syn3"}
     assert "otb" not in regression_methods
 
@@ -104,14 +106,19 @@ def test_e4_e5_specs_match_paper_grids() -> None:
     assert e5_values["eta"] == [0, 0.0001, 0.0005, 0.05, 0.25, 0.5]
     assert e5_values["lambda"] == [0, 0.25, 0.625, 0.75, 0.875, 1]
     assert e5_values["delta_alpha"] == [0, 0.001, 0.005, 0.01, 0.025, 1]
-    assert len(e4) == 18
-    assert len(e5) == 18
+    assert len(e4) == 18 * 10
+    assert len(e5) == 18 * 10
+    assert {spec.seed for spec in e4} == set(range(10))
+    assert {spec.seed for spec in e5} == set(range(10))
+    assert all(spec.data_seed == 0 for spec in e4 + e5)
 
 
 def test_e6_specs_cover_all_tau_values() -> None:
     config = load_config(ROOT / "configs" / "experiments" / "e6_akloms_tau.yaml")
     specs = build_specs(config)
-    assert len(specs) == 7 * 9
+    assert len(specs) == 7 * 9 * 10
+    assert {spec.seed for spec in specs} == set(range(10))
+    assert all(spec.data_seed == 0 for spec in specs)
     assert {spec.model_overrides["tau"] for spec in specs} == {
         0.001,
         0.01,
@@ -130,7 +137,26 @@ def test_e8_specs_have_both_figures() -> None:
     specs = build_specs(config)
     figures = {spec.notes.get("figure") for spec in specs}
     assert figures == {"fig8a", "fig8b"}
-    assert len(specs) == 8 * 6 + 6 * 8
+    assert len(specs) == (8 * 6 + 6 * 8) * 10
+    assert {spec.seed for spec in specs} == set(range(10))
+    assert all(spec.data_seed == 0 for spec in specs)
+
+
+def test_all_repeated_experiments_use_ten_fixed_data_seeds() -> None:
+    """Every experiment except E3 now also follows the 10-repetition protocol."""
+    for name in (
+        "e1_main",
+        "e2_small_m",
+        "e4_sensitivity_cls",
+        "e5_sensitivity_reg",
+        "e6_akloms_tau",
+        "e7_akloms_models",
+        "e8_runtime",
+    ):
+        config = load_config(ROOT / "configs" / "experiments" / f"{name}.yaml")
+        specs = build_specs(config)
+        assert {spec.seed for spec in specs} == set(range(10)), name
+        assert all(spec.data_seed == 0 for spec in specs), name
 
 
 def test_experiment_names() -> None:

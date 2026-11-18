@@ -105,6 +105,15 @@ it with the pairwise check, and spot checks on E6/E7 reproduce the same ACE and
 cover ratio. E8 was rerun after this change. Wall-clock timing on a shared
 laptop is still noisy, so the E8 numbers remain indicative.
 
+E8's `tau > 0` curves nearly coincide because at the tested values the cover
+still contains 92–99.8% of the knowledge base, so the prediction cost is almost
+the same. They sit slightly above `tau=0` because `tau=0` skips the per-sample
+cover check. The absolute seconds are much smaller than the paper's because
+`train_seconds` excludes data loading and logging, the implementation is
+vectorized NumPy, and the cover check uses an exact nearest-cover binary search
+instead of a pairwise distance matrix. Compare the scaling shape, not the
+absolute values.
+
 ### E3: method-specific catastrophic-forgetting protocol
 
 The paper's Table 2 says it feeds "the whole test set constituted of samples
@@ -145,10 +154,10 @@ the evaluation instant is not identical across methods.
 The old strict final-state results for AKLO, TranOL and OTB, including their
 W&B runs, were deleted on 17 Nov 2026 and rerun with the frozen per-task
 predictors; ITOL, TOL and Unif_Sum were kept. The earlier per-task E3 protocol
-and its `e3_task_test` group were removed before that. E3 now runs under group
-`e3_catastrophic-forgetting` with names
-`e3_catastrophic-forgetting-<dataset>-<method>-s<seed>`. OTB is undefined for
-regression.
+and its `e3_task_test` runs were removed before that. E3 now uses the names
+`e3_catastrophic-forgetting-<dataset>-<method>-s<seed>`; each configuration
+(same name without `-s<seed>`) is one W&B group and every run is tagged
+`experiment-e3_catastrophic-forgetting`. OTB is undefined for regression.
 
 The paper's Table 2 numbers are close to its Table 1 numbers, which suggests
 the original implementation evaluated each task's model shortly after

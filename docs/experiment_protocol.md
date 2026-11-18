@@ -178,8 +178,9 @@ held-out test set, evaluated with a method-specific predictor.
 
 E7 panel (a) follows the plotted chart, not the sentence below Figure 7:
 it shows raw ACE (%) for `tau = 0, 5, 10, 15, 20, 25` on the paper's 0–25 and
-10–35 axes. The small `tau` values used by panels (b)/(c) are not mixed into
-panel (a). See the E7 row in
+10–35 axes. The small `tau` values used by the model-ratio panel (b) are not
+mixed into panel (a). Panel (b) plots ACE against the selected-model ratio and
+zooms the x-axis to 0.8–1.0. See the E7 row in
 [`docs/paper_decisions.md`](paper_decisions.md).
 
 ### E3 protocol

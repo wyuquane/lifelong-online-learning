@@ -9,9 +9,11 @@ committed experiment configuration plus the public W&B runs.
 from __future__ import annotations
 
 import json
+import re
 from collections import defaultdict
 from pathlib import Path
 from typing import Any, Iterable
+from urllib.parse import quote
 
 import numpy as np
 
@@ -325,17 +327,40 @@ def _mean_int(values: list[float]) -> str:
     return str(int(round(float(np.mean(values)))))
 
 
-def _link(value: str, result: dict[str, Any] | None) -> str:
-    if result is None:
-        return value
-    url = result.get("summary", {}).get("wandb_url")
-    if not url:
-        return value
-    return f"[{value}]({url})"
+def _wandb_group_name(result: dict[str, Any]) -> str | None:
+    """Return the configuration group: the run name without its seed suffix."""
+    run_name = result.get("run_name")
+    if not run_name:
+        return None
+    return re.sub(r"-s\d+$", "", str(run_name))
 
 
-def _first(results: list[dict[str, Any]]) -> dict[str, Any] | None:
-    return results[0] if results else None
+def _wandb_group_url(result: dict[str, Any]) -> str | None:
+    """Build the W&B group URL from the run URL and configuration group."""
+    run_url = result.get("summary", {}).get("wandb_url")
+    group = _wandb_group_name(result)
+    if not run_url or not group:
+        return None
+    base = str(run_url).split("/runs/", 1)[0]
+    if base == str(run_url):
+        return None
+    return f"{base}/groups/{quote(group, safe='')}"
+
+
+def _link(
+    value: str,
+    results: dict[str, Any] | list[dict[str, Any]] | None,
+) -> str:
+    """Link a table cell to the W&B group holding every seed of its config."""
+    if results is None:
+        return value
+    if isinstance(results, dict):
+        results = [results]
+    for result in results:
+        url = _wandb_group_url(result)
+        if url:
+            return f"[{value}]({url})"
+    return value
 
 
 def _markdown_table(headers: list[str], rows: list[list[str]]) -> str:
@@ -392,7 +417,7 @@ def _method_by_dataset_table(
             group = _method_results(results, dataset, method)
             values = _values(group, value_key, scale=_ace_scale)
             cells.append(
-                _link(_mean_std(values), _first(group)) if values else "–"
+                _link(_mean_std(values), group) if values else "–"
             )
         rows.append(cells)
     return _markdown_table(headers, rows)
@@ -423,7 +448,7 @@ def table_e1_paper(results: list[dict[str, Any]]) -> str:
                     dataset,
                     METHOD_LABELS[method],
                     f"{paper_value:.2f}",
-                    _link(_mean_std(reproduction), _first(group)),
+                    _link(_mean_std(reproduction), group),
                 ]
             )
     return _markdown_table(headers, rows)
@@ -454,7 +479,7 @@ def table_e2(results: list[dict[str, Any]]) -> str:
                 and int(result["config"].get("data_overrides", {}).get("n_samples", -1))
                 == n_samples
             ]
-            cells.append(_link(_mean_std(_values(group, "final_cumulative_ace", _ace_scale)), _first(group)))
+            cells.append(_link(_mean_std(_values(group, "final_cumulative_ace", _ace_scale)), group))
         rows.append(cells)
     return _markdown_table(headers, rows)
 
@@ -496,7 +521,7 @@ def table_e3_paper(results: list[dict[str, Any]]) -> str:
                                 _ace_scale,
                             )
                         ),
-                        _first(group),
+                        group,
                     ),
                 ]
             )
@@ -515,15 +540,19 @@ def _sensitivity_table(
     # Runs that do not override this parameter belong to the sweeps of the
     # other parameters and must not be pooled into a spurious "None" row.
     groups.pop(None, None)
-    headers = [parameter, ace_label, "W&B"]
+    headers = [parameter, ace_label]
     rows = []
     for value in sorted(groups, key=lambda item: (item is None, item)):
         group = groups[value]
         rows.append(
             [
                 f"{value:g}" if isinstance(value, (int, float)) else str(value),
-                _mean_std(_values(group, "final_cumulative_ace", _ace_scale)),
-                _link("run", _first(group)),
+                _link(
+                    _mean_std(
+                        _values(group, "final_cumulative_ace", _ace_scale)
+                    ),
+                    group,
+                ),
             ]
         )
     if not rows:
@@ -565,7 +594,7 @@ def table_e6(results: list[dict[str, Any]]) -> str:
                     _mean_std(
                         _values(group, "final_cumulative_ace", _ace_scale)
                     ),
-                    _first(group),
+                    group,
                 )
             )
         rows.append(cells)
@@ -599,7 +628,14 @@ def table_e7(results: list[dict[str, Any]]) -> str:
                 and float(result["config"].get("model_overrides", {}).get("tau", -1.0))
                 == tau
             ]
-            cells.append(_mean_std(_values(group, "final_cumulative_ace", _ace_scale)))
+            cells.append(
+                _link(
+                    _mean_std(
+                        _values(group, "final_cumulative_ace", _ace_scale)
+                    ),
+                    group,
+                )
+            )
         rows.append(cells)
     return _markdown_table(headers, rows)
 
@@ -635,7 +671,9 @@ def table_e7_ratio(results: list[dict[str, Any]]) -> str:
                 for result in group
             ]
             ratios = [float(value) for value in ratios if value is not None]
-            cells.append(_mean_std([value * 100.0 for value in ratios]))
+            cells.append(
+                _link(_mean_std([value * 100.0 for value in ratios]), group)
+            )
         rows.append(cells)
     return _markdown_table(headers, rows)
 
@@ -680,7 +718,11 @@ def table_e8(results: list[dict[str, Any]]) -> str:
                     and int(result["config"]["notes"]["n_samples"]) == n_samples
                 ]
                 values = _values(group, "train_seconds")
-                cells.append(_mean_std(values, decimals=3) if values else "-")
+                cells.append(
+                    _link(_mean_std(values, decimals=3), group)
+                    if values
+                    else "-"
+                )
             rows.append(cells)
         lines.append(_markdown_table(headers, rows))
     else:
@@ -712,7 +754,11 @@ def table_e8(results: list[dict[str, Any]]) -> str:
                     and float(result["config"]["notes"]["tau"]) == tau
                 ]
                 values = _values(group, "train_seconds")
-                cells.append(_mean_std(values, decimals=3) if values else "-")
+                cells.append(
+                    _link(_mean_std(values, decimals=3), group)
+                    if values
+                    else "-"
+                )
             rows.append(cells)
         lines.append(_markdown_table(headers, rows))
     else:
@@ -957,12 +1003,12 @@ def _e7_series(
     results: list[dict[str, Any]],
     figure: str | None = None,
 ) -> dict[int, list[dict[str, float]]]:
-    """ACE, remaining-model count, and remaining-model ratio per task count.
+    """ACE and remaining-model ratio per task count and ``tau``.
 
     ``figure`` restricts the runs to the panel that used that ``tau`` grid:
     ``"fig7a"`` is the six-point ``tau = 0..25`` curve, while ``"fig7b"`` (or
-    no filter) also includes the small ``tau`` values used for the ratio
-    panels.
+    no filter) also includes the small ``tau`` values used for the
+    model-ratio panel.
     """
     if figure is not None:
         results = [
@@ -1016,7 +1062,6 @@ def _e7_series(
                     "tau": float(tau),
                     "ace": float(np.mean(values)),
                     "ratio": ratio,
-                    "n_models": ratio * task_count,
                 }
             )
         if points:
@@ -1025,7 +1070,7 @@ def _e7_series(
 
 
 def figure_e7(results: list[dict[str, Any]], output_dir: Path) -> Path | None:
-    """Paper Figure 7: AKLOMS ACE, remaining models, and remaining ratio."""
+    """Paper Figure 7: AKLOMS ACE versus tau and remaining-model ratio."""
     plt = _pyplot()
     _paper_style(plt)
     series_a = _e7_series(results, figure="fig7a")
@@ -1039,7 +1084,7 @@ def figure_e7(results: list[dict[str, Any]], output_dir: Path) -> Path | None:
         for index, task_count in enumerate(series_b)
     }
 
-    fig, axes = plt.subplots(1, 3, figsize=(16, 4.6))
+    fig, axes = plt.subplots(1, 2, figsize=(11, 4.6))
     # Panel (a): the six-point tau grid used by the paper's Figure 7(a).
     for task_count, points in series_a.items():
         color, marker = styles[task_count]
@@ -1053,23 +1098,11 @@ def figure_e7(results: list[dict[str, Any]], output_dir: Path) -> Path | None:
             linewidth=1.4,
             label=f"# of Tasks - {task_count}",
         )
-    # Panels (b)/(c): all tau values, including the small ones that produce
-    # the model-number and model-ratio sweeps.
+    # Panel (b): all tau values, ACE versus the remaining-model ratio.
     for task_count, points in series_b.items():
         color, marker = styles[task_count]
-        label = f"# of Tasks - {task_count}"
         ordered = sorted(points, key=lambda item: item["ratio"])
         axes[1].plot(
-            [point["n_models"] for point in ordered],
-            [point["ace"] for point in ordered],
-            color=color,
-            marker=marker,
-            markersize=4.5,
-            markerfacecolor="white",
-            linewidth=1.4,
-            label=label,
-        )
-        axes[2].plot(
             [point["ratio"] for point in ordered],
             [point["ace"] for point in ordered],
             color=color,
@@ -1077,7 +1110,7 @@ def figure_e7(results: list[dict[str, Any]], output_dir: Path) -> Path | None:
             markersize=4.5,
             markerfacecolor="white",
             linewidth=1.4,
-            label=label,
+            label=f"# of Tasks - {task_count}",
         )
 
     axes[0].set_xlim(-0.5, 25.5)
@@ -1093,20 +1126,18 @@ def figure_e7(results: list[dict[str, Any]], output_dir: Path) -> Path | None:
     )
     axes[0].legend(loc="upper left", fontsize=6.5, frameon=True)
 
-    axes[1].set_xlim(left=0.0)
-    axes[1].set_xlabel("Model Number")
+    # Focus the ratio panel on the high-ratio region where all task counts
+    # live; the full 0-1 range leaves most of the panel empty.
+    ratios = [point["ratio"] for points in series_b.values() for point in points]
+    left = 0.8 if min(ratios) >= 0.8 else min(ratios) - 0.02
+    axes[1].set_xlim(left=left, right=1.0)
+    axes[1].set_xticks(np.linspace(left, 1.0, 5))
+    axes[1].set_xlabel("Model Ratio")
     axes[1].set_ylabel("ACE (%)")
-    axes[1].set_title("Model Number - Performance", fontsize=10)
-    axes[1].legend(loc="upper right", fontsize=6.5, frameon=True)
+    axes[1].set_title("Model Ratio - Performance", fontsize=10)
+    axes[1].legend(loc="best", fontsize=6.5, frameon=True)
 
-    axes[2].set_xlim(0.0, 1.01)
-    axes[2].set_xticks(np.arange(0.0, 1.01, 0.2))
-    axes[2].set_xlabel("Model Ratio")
-    axes[2].set_ylabel("ACE (%)")
-    axes[2].set_title("Model Ratio - Performance", fontsize=10)
-    axes[2].legend(loc="upper right", fontsize=6.5, frameon=True)
-
-    for axis, label in zip(axes, ["(a)", "(b)", "(c)"]):
+    for axis, label in zip(axes, ["(a)", "(b)"]):
         axis.text(
             0.5,
             -0.28,
@@ -1263,7 +1294,9 @@ def build_report(
         "`data_seed=0`, and only the task and example order changes. Tables",
         "report the mean ± standard deviation over the ten seeds; figures show",
         "the mean. Classification ACE is a percentage; regression ACE is on the",
-        "target scale. W&B links are included when the run was tracked online.",
+        "target scale. Each number links to the W&B group that holds all ten",
+        "seeds of that configuration; links are omitted when the run was not",
+        "tracked online.",
         "",
         "## E1: main comparison (paper Table 1)",
         "",
@@ -1362,7 +1395,8 @@ def build_report(
         "Panel (a) follows the chart itself: raw ACE (%) on the paper's",
         "`tau = 0..25` and 10-35 axes. The sentence below Figure 7 that",
         "describes an ACE ratio is treated as an editorial error, so no ratio",
-        "normalization is applied.",
+        "normalization is applied. Panel (b) plots ACE against the",
+        "selected-model ratio and zooms the x-axis to 0.8-1.0.",
         "",
         "## E8: runtime scaling (paper Figure 8)",
         "",
@@ -1378,9 +1412,17 @@ def build_report(
         "",
         "At the tested `tau` values the AKLOMS cover stays close to the full",
         "knowledge base (see E6/E7), so the AKLOMS table mainly measures the",
-        "cost of a near-full cover. The paper's negative `tau`/runtime trend",
-        "requires much larger `tau` in this implementation; `tau=0` is the",
-        "AKLO-equivalent special case.",
+        "cost of a near-full cover. Consequently the `tau > 0` rows nearly",
+        "coincide and sit slightly above `tau=0`: the per-sample cover check is",
+        "overhead until `tau` is large enough to discard many models. The",
+        "paper's negative `tau`/runtime trend requires much larger `tau` in this",
+        "implementation; `tau=0` is the AKLO-equivalent special case.",
+        "",
+        "The absolute seconds are much smaller than the paper's because",
+        "`train_seconds` excludes data loading and logging, the implementation",
+        "uses vectorized NumPy, and the cover check is an exact nearest-cover",
+        "binary search rather than a pairwise distance matrix. Compare the",
+        "scaling shape, not the absolute values.",
         "",
         "## Theory checks",
         "",
@@ -1420,8 +1462,8 @@ def build_report(
                     load_results(results_dir, "e7_akloms_models"), output_dir
                 ),
                 "Figure 7 reproduction: (a) ACE (%) versus `tau` for each task "
-                "count on syn1; (b) ACE versus the number and ratio of "
-                "remaining models. Curves are means over 10 seeds.",
+                "count on syn1; (b) ACE versus the ratio of remaining models, "
+                "zoomed to 0.8-1.0. Curves are means over 10 seeds.",
             ),
             (
                 "e8_runtime.png",

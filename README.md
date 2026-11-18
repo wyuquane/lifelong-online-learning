@@ -65,21 +65,21 @@ runner is [`src/aklo/runner.py`](src/aklo/runner.py).
 
 ## Main results
 
-Task-averaged prequential ACE (%) on the E1 runs (seed 0). Lower is better.
-Paper values are from Table 1 of the paper.
+Task-averaged prequential ACE (%) on the E1 runs, mean ± standard deviation
+over seeds 0–9. Lower is better. Paper values are from Table 1 of the paper.
 
 | Dataset | ITOL | TOL | Unif_Sum | TranOL | OTB | AKLO (ours) | AKLO (paper) |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
-| syn1 | 37.32 | 23.62 | 49.93 | 37.10 | 19.52 | **11.95** | 10.10 |
-| syn2 | 38.12 | 37.78 | 51.38 | 44.05 | 37.53 | **10.32** | 10.16 |
-| Landmine | 38.39 | 38.30 | 39.20 | 38.21 | 33.95 | **29.95** | 7.30 |
-| Spam | 25.63 | 20.47 | 24.70 | 21.20 | 17.50 | **19.50** | 17.36 |
-| syn3 | 7.94 | 7.94 | 1.60 | 5.35 | – | **1.06** | 4.06 |
-| syn4 | 5.18 | 5.18 | 1.40 | 3.69 | – | **1.10** | 2.98 |
-| London | 14.80 | 12.61 | 15.02 | 13.19 | – | **11.94** | 10.05 |
+| syn1 | 37.05 ± 0.47 | 23.86 ± 0.35 | 49.65 ± 0.73 | 36.71 ± 1.67 | 19.84 ± 0.66 | **12.29 ± 0.83** | 10.10 |
+| syn2 | 38.17 ± 0.51 | 37.82 ± 0.63 | 50.36 ± 0.83 | 43.11 ± 1.04 | 37.79 ± 0.61 | **10.72 ± 0.78** | 10.16 |
+| Landmine | 39.35 ± 0.85 | 38.93 ± 1.49 | 51.97 ± 8.85 | 41.03 ± 2.90 | 33.71 ± 1.73 | **30.96 ± 1.36** | 7.30 |
+| Spam | 25.76 ± 0.90 | 20.37 ± 0.80 | 24.51 ± 3.85 | 20.94 ± 1.77 | **18.34 ± 0.64** | 20.93 ± 1.61 | 17.36 |
+| syn3 | 7.94 ± 0.01 | 7.93 ± 0.01 | 1.52 ± 0.11 | 5.17 ± 0.10 | – | **0.96 ± 0.10** | 4.06 |
+| syn4 | 5.17 ± 0.01 | 5.18 ± 0.01 | 1.39 ± 0.09 | 3.61 ± 0.06 | – | **1.00 ± 0.10** | 2.98 |
+| London | 14.81 ± 0.01 | 12.60 ± 0.03 | 14.89 ± 0.10 | 13.21 ± 0.06 | – | **11.77 ± 0.09** | 10.05 |
 
 AKLO is the best method on six of the seven datasets. The exception is Spam,
-where OTB is slightly better (17.50 vs 19.50). The qualitative conclusion of
+where OTB is better (18.34 vs 20.93). The qualitative conclusion of
 the paper—AKLO benefits from accumulated knowledge and is competitive with or
 better than the baselines—is reproduced. The numerical gaps are discussed
 below.
@@ -87,32 +87,35 @@ below.
 ### Known deviations
 
 * **Landmine:** our errors are much larger than the paper's because we do not
-  append a bias feature and we resample 150 examples per task. The relative
+  append a bias feature and we sample 150 examples per task. The relative
   method ordering is still informative.
 * **Regression:** our ACEs are much lower than the paper's. The paper's `syn3`
   values are worse than predicting zero (e.g. Unif_Sum 27.69), which is hard
   to reconcile with the stated absolute loss and data scale. This is an
   unresolved inconsistency in the paper, not a bug in the metric.
-* **Repetitions:** the paper repeats each experiment 10 times. E3 uses all ten
-  seeds (`0..9`) and reports mean ± standard deviation. E1/E2/E4-E8 still use
-  `seed=0` for compute reasons; their configs accept `seeds: [0, 1, ...]` and
-  will reproduce the repetition protocol when extended.
+* **Repetitions:** the paper repeats each experiment 10 times. All experiments
+  use seeds `0..9` and report mean ± standard deviation. The data and split are
+  fixed by `data_seed=0`; only the task and example order changes, matching the
+  paper's repetition description.
 * **Synthetic task count:** E3 follows the text's 50 tasks (25 per
-  distribution). E1/E2/E7 use 200 tasks because Figures 3 and 7 have axes up
-  to 200 and 400; this is a deliberate split between the Table 1/Table 2
-  protocol and the scaling figures.
+  distribution). E1/E2 use 200 tasks, while E7 sweeps 50–400 tasks because
+  Figure 7 has axes up to 400; this is a deliberate split between the
+  Table 1/Table 2 protocol and the scaling figures.
 * **Meta loss:** the paper's Section 6 says square loss for the meta
   hypothesis, but Algorithm 2, the bounded-loss theory, and the reported
   numbers point to a classification loss. We use hinge for classification and
   squared loss for regression; this is configurable via `meta_loss`.
 * **AKLOMS cover size:** the cover test uses raw prediction differences, so
-  its effective scale depends on the weight norm. With the Section 6 defaults
-  the cover stays at 98–99% of the knowledge base for `tau <= 1` and 87–91% at
-  `tau=25`; only `tau=100` brings it to 45.5%. The paper's Figure 7 reports
-  much smaller model ratios, but does not give the `tau` values behind panel
-  (b), so the absolute `tau` axis is not directly comparable. The qualitative
-  trade-off (larger `tau` → smaller cover, higher ACE) is reproduced.
-* **Runtime:** E8 measures `train_seconds` once on a shared Windows laptop.
+  its effective scale depends on the dataset and weight norm. On `syn1`/`syn2`
+  and the E7 streams the cover stays at 97–99.8% for `tau <= 1` and 83–88% at
+  `tau=25`; on London, `syn3` and `syn4` it is already smaller at `tau=1`, and
+  `tau=100` drops it to 0.5–50% on most datasets (Spam stays at 93%). The
+  paper's Figure 7 reports much smaller model ratios, but does not give the
+  `tau` values behind panel (b), so the absolute `tau` axis is not directly
+  comparable. The qualitative trade-off (larger `tau` → smaller cover, higher
+  ACE) is reproduced.
+* **Runtime:** E8 measures `train_seconds` for every seed on a shared Windows
+  laptop; the table reports the mean ± standard deviation over the ten seeds.
   The timer excludes data loading and W&B calls, but background uploads can
   still perturb wall-clock timing. The scaling shape is more reliable than the
   absolute seconds. The AKLOMS cover check uses an exact nearest-cover binary
@@ -194,32 +197,34 @@ See [`docs/experiment_protocol.md`](docs/experiment_protocol.md) and
 
 ## Other experiments
 
-**E2 (`m_t`).** On `syn1`/AKLO, ACE falls from 22.90% at `m_t=10` to 10.70%
-at `m_t=200` (13.11% at 40, 13.78% at 80, 13.47% at 160, 11.58% at 250,
-11.63% at 300). More per-task samples help, matching Figure 3's qualitative
-trend; the curve is noisy because each point is a single seed. The eight
-panels match the paper's eight `m_t` values.
+**E2 (`m_t`).** On `syn1`/AKLO, mean ACE falls from 24.27% at `m_t=10` to
+11.20% at `m_t=300` (20.21% at 20, 14.91% at 40, 13.04% at 80, 11.99% at 160,
+11.48% at 200, 11.24% at 250). More per-task samples help, matching Figure 3's
+qualitative trend; the eight panels match the paper's eight `m_t` values, and
+each point is the mean over 10 seeds.
 
 **E4/E5 (hyperparameter sensitivity).** The exact grids from the paper's
 figure legends are used. For classification (`syn1`), the default
-`eta=1`, `lambda=0.001`, `delta_alpha=0.001` gives 11.95%; `eta=10` gives
-14.47% and `eta=0` gives 54.34%, while `delta_alpha=0` gives the lowest ACE
-(6.80%) because the meta-hypothesis keeps full weight. For regression
-(`syn3`), `eta=0.0005` gives 0.96, the default `eta=0.05` gives 1.06,
-`lambda=0` gives 0.85, and `delta_alpha=0` gives 0.93. The figures mirror
+`eta=1`, `lambda=0.001`, `delta_alpha=0.001` gives 12.29%; `eta=10` gives
+17.18% and `eta=0` gives 54.34%, while `delta_alpha=0` gives the lowest ACE
+(6.65%) because the meta-hypothesis keeps full weight. For regression
+(`syn3`), `eta=0.0005` and the default `eta=0.05` both give 0.96,
+`lambda=0` gives 0.76, and `delta_alpha=0` gives 0.83. The figures mirror
 paper Figures 4/5: three panels of cumulative ACE against task index, one
-line per parameter value. Full tables are in `reports/report.md`.
+line per parameter value, with each curve averaged over 10 seeds. Full tables
+are in `reports/report.md`.
 
 **E6 (`tau`).** Small `tau` (≤0.1) is indistinguishable from AKLO. ACE then
-rises with `tau`: on `syn1`, 11.84% at `tau=0.001`, 12.16% at 1, 12.61% at 10,
-and 23.13% at 100; on `syn2`, 10.32% at the default and 41.16% at `tau=100`.
+rises with `tau`: on `syn1`, 12.28% at `tau=0.001`, 12.66% at 1, 12.85% at 10,
+and 24.48% at 100; on `syn2`, 10.76% at the default and 40.53% at `tau=100`.
 This is the expected accuracy/compression trade-off, but the useful `tau` range
-is much larger than the paper's.
+is much larger than the paper's. Each cell is the mean over 10 seeds.
 
-**E7 (task count).** The same pattern holds for 50–400 tasks: the
-selected-model ratio is 98–99% for `tau <= 1`, 86.7–91.0% at `tau=25`, and ACE
-increases mildly with `tau`. It never reaches the small ratios shown in the
-paper's Figure 7(b); see the `tau` deviation above.
+**E7 (task count).** The same pattern holds for 50–400 tasks: the mean
+selected-model ratio is 97–99.8% for `tau <= 1`, 83–88% at `tau=25`, and ACE
+increases mildly with `tau` (e.g. 15.72% → 17.14% at 50 tasks). It never
+reaches the small ratios shown in the paper's Figure 7(b); see the `tau`
+deviation above.
 
 ## Weights & Biases
 
@@ -267,7 +272,7 @@ src/aklo/
   runner.py                  # online loop, metrics, JSON/W&B logging
   report.py                  # tables and figures
   theory.py                  # theory instrumentation and analysis
-tests/                       # 77 unit tests
+tests/                       # 87 unit tests
 ```
 
 ## Theory checks

@@ -30,10 +30,10 @@ draws.
 | Decision | Paper | Reproduction | Why |
 | --- | --- | --- | --- |
 | Landmine features | Nine features | Nine features, **no bias** | User decision. A bias feature would likely reduce the large errors; the paper does not say whether one was added. |
-| Landmine sampling | 150 examples per task | 150 examples per task, redrawn for every repetition | Matches the paper's sample count; resampling per repetition is our choice. |
+| Landmine sampling | 150 examples per task | 150 examples per task, fixed across repetitions by `data_seed=0` | Matches the paper's sample count while keeping the data fixed across the ten order shuffles. |
 | Spam users | 14 users | **15 users** | The local NPZ contains 15 users; user decision to use all of them. |
 | Spam features | ~1.5e5 bag-of-word counts | 152,543 raw counts, no TF-IDF | Matches the paper's "word occurrence frequency"; raw counts were chosen by the user. |
-| Spam sampling | 200 samples per task | 200 samples per user, redrawn for every repetition | Matches the paper's sample count. |
+| Spam sampling | 200 samples per task | 200 samples per user, fixed across repetitions by `data_seed=0` | Matches the paper's sample count while keeping the data fixed across the ten order shuffles. |
 | London features | 27 binary features + bias | 28 inputs after one-hot encoding + bias | See below. |
 | London target | Examination score | Raw examination score | Matches the paper. |
 | Bias feature | London has one bias | Only London has a bias column | User decision; synthetic, Landmine, and Spam inputs do not append a constant feature. |
@@ -62,7 +62,7 @@ Total: `3 + 1 + 4 + 11 + 3 + 3 + 2 + 1 = 28`.
 | Classification prediction | `sign(w^T x)` | `sign(w^T x)`, with `sign(0)=+1` | The paper does not define the tie; this convention is documented in the code and tests. |
 | Meta loss, classification | Square loss `(y - y_hat)^2` | **Hinge loss** | Section 6 says square loss, but Algorithm 2, the bounded-loss theory, and the reported numbers point to a classification loss. Squared raw predictions gave about 25% ACE on `syn1`; hinge gave about 12%, close to the paper's 10.10%. The choice is configurable via `meta_loss`. |
 | Meta loss, regression | Square loss | Squared loss | Matches the paper. |
-| AKLOMS `tau` | Different `tau` per task/dataset | One `tau` per dataset, swept in E6/E7/E8 | The paper says different `tau` values are used for different scenarios but does not give a rule. The **absolute** `tau` values are not comparable across implementations: the cover test uses raw prediction differences, whose scale depends on the weight norm. In our runs the cover stays above 90% until `tau ~ 25` and only falls to 45.5% at `tau=100`; the paper's Figure 7 reports much smaller model ratios but does not give the `tau` values behind panel (b). We therefore compare trends, not the exact `tau` axis. |
+| AKLOMS `tau` | Different `tau` per task/dataset | One `tau` per dataset, swept in E6/E7/E8 | The paper says different `tau` values are used for different scenarios but does not give a rule. The **absolute** `tau` values are not comparable across implementations: the cover test uses raw prediction differences, whose scale depends on the dataset and weight norm. On `syn1`/`syn2` and the E7 streams the cover is 97–99.8% for `tau <= 1` and 83–88% at `tau=25`; `tau=100` drops it to 50.4% on `syn1` and 25.1% on `syn2`. The paper's Figure 7 reports much smaller model ratios but does not give the `tau` values behind panel (b). We therefore compare trends, not the exact `tau` axis. |
 | AKLOMS cover | `2*tau` packing, random initial member | One random member at task start; add previous models at least `2*tau` away from the cover | Follows Algorithm 3. The current task's model is appended to the knowledge base after the task, not used in the cover during that task. |
 | AKLOMS with `tau=0` | Stated to recover AKLO | Full knowledge base + AKLO's `log(t-1)` epsilon | Algorithm 3's `|Lambda_t|` formula would not reproduce Algorithm 2's epsilon, so the `tau=0` special case follows the paper's stated equivalence. |
 | Knowledge base contents | Previous task predictors | Final predictor of each previous task | Matches the algorithm. |
@@ -89,11 +89,12 @@ and in the model configs.
 
 | Decision | Paper | Reproduction | Why |
 | --- | --- | --- | --- |
-| Repetitions | 10 per experiment | **E3: 10 seeds** (`0..9`); E1/E2/E4-E8: **1 seed** (`seed=0`) | E3 follows the paper's repetition protocol. The other experiments remain at one seed for compute reasons; their configs accept multiple seeds. |
+| Repetitions | 10 per experiment | **10 seeds** (`0..9`) for every experiment | Follows the paper's repetition protocol. Tables report mean ± standard deviation and figures use the mean. |
 | E1/E2/E4-E8 evaluation | Online ACE | Online ACE, `test_fraction=0` | Matches the paper. |
 | E3 evaluation | Table 2, "test samples from previous tasks" | Method-specific predictor: frozen per-task snapshot for ITOL/AKLO/TranOL/OTB; final online model for TOL; average of task snapshots for Unif_Sum | User decision (17 Nov 2026). See below. |
-| Global shuffle | Random task and example order per repetition | Deterministic shuffle per seed; same for every method | Necessary for a controlled comparison. For E3 the data and split are fixed by `data_seed=0`; only the order changes across seeds. |
-| Runtime | Wall-clock scaling | `train_seconds` around the predict/update loop only; one measurement | Excludes data loading and logging so that W&B does not contaminate the measurement. The AKLOMS cover check uses an exact nearest-cover binary search, so distance comparison stays negligible next to prediction, as the paper assumes. |
+| E7 panel (a) | The text below Figure 7 says each point is `ACE(tau) / ACE(0)`; the plotted panel shows raw ACE (%) | Raw ACE (%) versus `tau`, with `tau = 0, 5, 10, 15, 20, 25` and the paper's 10–35 y-axis | User decision (18 Nov 2026): the sentence is an editorial error, so the reproduction follows the chart itself and does not apply the ratio. |
+| Global shuffle | Random task and example order per repetition | Deterministic shuffle per seed; same for every method | Necessary for a controlled comparison. For every experiment the data and split are fixed by `data_seed=0`; only the order changes across seeds. |
+| Runtime | Wall-clock scaling | `train_seconds` around the predict/update loop only; mean ± standard deviation over 10 seeds | Excludes data loading and logging so that W&B does not contaminate the measurement. The AKLOMS cover check uses an exact nearest-cover binary search, so distance comparison stays negligible next to prediction, as the paper assumes. |
 
 The first E8 run used a brute-force `|knowledge base| x |cover|` distance
 matrix. At small `tau` the cover approaches the full knowledge base, so cover
@@ -171,9 +172,8 @@ These are known and should be read as empirical findings, not as hidden
 failures:
 
 1. **Landmine errors are much larger than the paper's** (AKLO ~30% versus
-   7.30%). The most likely cause is the missing bias feature and the
-   resampling procedure; the relative ordering of methods is still
-   informative.
+   7.30%). The most likely cause is the missing bias feature and the sampling
+   procedure; the relative ordering of methods is still informative.
 2. **Regression ACEs are much lower than the paper's** for `syn3`, `syn4`, and
    London. The paper's `syn3` values are worse than predicting zero (e.g.
    Unif_Sum 27.69), which is difficult to reconcile with the stated absolute

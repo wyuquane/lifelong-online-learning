@@ -53,8 +53,9 @@ is at least 300 observations per task so that E2 can use nested prefixes of the
 same data for different `m_t`.
 
 > The paper text says 50 synthetic tasks (25 per distribution), but Figures 3
-> and 7 show axes up to 200 and 400 tasks. This reproduction uses 200 tasks and
-> one seed by default; the 200-task choice follows the figures. See
+> and 7 show axes up to 200 and 400 tasks. This reproduction uses 200 tasks;
+> the 200-task choice follows the figures. Every experiment is repeated over
+> seeds `0..9` with `data_seed=0`, so only the task/example order changes. See
 > `docs/paper_decisions.md`.
 
 ### Landmine
@@ -63,7 +64,8 @@ Loader: `src/aklo/data/landmine.py`. File:
 `data/landmine-detection.csv`. There are 29 geographical regions (tasks) and
 nine features. For each run, 150 examples are sampled without replacement from
 each region. Labels are `+1` (landmine) and `-1` (clutter). The paper samples
-150 examples per task; resampling every repetition is our choice.
+150 examples per task; the sample is fixed across repetitions by
+`data_seed=0`.
 
 ### Spam
 
@@ -163,16 +165,22 @@ The E4/E5 sweeps use the exact paper figure legends:
 | --- | --- | --- | --- | --- |
 | E1 | Table 1 | `configs/experiments/e1_main.yaml` | `python scripts/run.py --experiment e1_main` | Main comparison on all 7 datasets |
 | E2 | Figure 3 | `configs/experiments/e2_small_m.yaml` | `python scripts/run.py --experiment e2_small_m` | ACE versus `m_t` on `syn1` |
-| E3 | Table 2 | `configs/experiments/e3_catastrophic-forgetting.yaml` | `python scripts/run.py --experiment e3_catastrophic-forgetting` | Final-state test ACE on the union of all task test sets (10 seeds) |
+| E3 | Table 2 | `configs/experiments/e3_catastrophic-forgetting.yaml` | `python scripts/run.py --experiment e3_catastrophic-forgetting` | Method-specific test ACE on each task's held-out set |
 | E4 | Figure 4 | `configs/experiments/e4_sensitivity_cls.yaml` | `python scripts/run.py --experiment e4_sensitivity_cls` | Classification sensitivity to `eta`, `lambda`, `delta_alpha` |
 | E5 | Figure 5 | `configs/experiments/e5_sensitivity_reg.yaml` | `python scripts/run.py --experiment e5_sensitivity_reg` | Regression sensitivity to `eta`, `lambda`, `delta_alpha` |
 | E6 | Table 3 | `configs/experiments/e6_akloms_tau.yaml` | `python scripts/run.py --experiment e6_akloms_tau` | AKLOMS ACE versus `tau` |
-| E7 | Figure 7 | `configs/experiments/e7_akloms_models.yaml` | `python scripts/run.py --experiment e7_akloms_models` | AKLOMS selected-model ratio versus task count and `tau` |
+| E7 | Figure 7 | `configs/experiments/e7_akloms_models.yaml` | `python scripts/run.py --experiment e7_akloms_models` | AKLOMS ACE and selected-model ratio versus task count and `tau` |
 | E8 | Figure 8 | `configs/experiments/e8_runtime.yaml` | `python scripts/run.py --experiment e8_runtime` | Runtime versus task count, `m_t`, and `tau` |
 
 E1/E2/E4-E8 use `test_fraction: 0.0`: every task is a pure online stream, as
 in the paper's ACE definition. E3 is the exception: each task has a separate
 held-out test set, evaluated with a method-specific predictor.
+
+E7 panel (a) follows the plotted chart, not the sentence below Figure 7:
+it shows raw ACE (%) for `tau = 0, 5, 10, 15, 20, 25` on the paper's 0–25 and
+10–35 axes. The small `tau` values used by panels (b)/(c) are not mixed into
+panel (a). See the E7 row in
+[`docs/paper_decisions.md`](paper_decisions.md).
 
 ### E3 protocol
 
@@ -238,12 +246,13 @@ per-task E3 protocol and its `e3_task_test` W&B runs were removed.
 ## 7. Repetitions and seeds
 
 The paper repeats every experiment 10 times with fresh task and example
-shuffles. E3 uses all ten seeds (`0..9`), with the underlying data and split
-fixed by `data_seed: 0` and only the task/example order changing per seed. The
-other experiments still use `seed: 0` for the committed results because of the
-compute budget; their configs accept `seeds: [0, 1, ...]` and will reproduce
-the paper's repetition protocol when extended. Runtime in E8 is measured once
-on the machine that ran the experiment.
+shuffles. All experiments use seeds `0..9`, with the underlying data and split
+fixed by `data_seed: 0` and only the task/example order changing per seed. This
+matches the paper's description of shuffling the task order and the example
+order in each repetition. Tables report the mean ± standard deviation over the
+ten seeds; figures show the mean. Runtime in E8 is measured for every seed on
+the machine that ran the experiment, and its table reports mean ± standard
+deviation.
 
 ## 8. Runtime measurement
 

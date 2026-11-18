@@ -953,8 +953,23 @@ def figure_e5(results: list[dict[str, Any]], output_dir: Path) -> Path | None:
     )
 
 
-def _e7_series(results: list[dict[str, Any]]) -> dict[int, list[dict[str, float]]]:
-    """ACE, remaining-model count, and remaining-model ratio per task count."""
+def _e7_series(
+    results: list[dict[str, Any]],
+    figure: str | None = None,
+) -> dict[int, list[dict[str, float]]]:
+    """ACE, remaining-model count, and remaining-model ratio per task count.
+
+    ``figure`` restricts the runs to the panel that used that ``tau`` grid:
+    ``"fig7a"`` is the six-point ``tau = 0..25`` curve, while ``"fig7b"`` (or
+    no filter) also includes the small ``tau`` values used for the ratio
+    panels.
+    """
+    if figure is not None:
+        results = [
+            result
+            for result in results
+            if result.get("config", {}).get("notes", {}).get("figure") == figure
+        ]
     task_counts = sorted(
         {
             int(result["config"].get("data_overrides", {}).get("n_tasks", 0))
@@ -1013,17 +1028,21 @@ def figure_e7(results: list[dict[str, Any]], output_dir: Path) -> Path | None:
     """Paper Figure 7: AKLOMS ACE, remaining models, and remaining ratio."""
     plt = _pyplot()
     _paper_style(plt)
-    series = _e7_series(results)
-    if not series:
+    series_a = _e7_series(results, figure="fig7a")
+    series_b = _e7_series(results)
+    if not series_a or not series_b:
         return None
     colors = plt.get_cmap("tab10").colors
     markers = ["o", "s", "^", "D", "x", "v", "P", "X"]
+    styles = {
+        task_count: (colors[index % len(colors)], markers[index % len(markers)])
+        for index, task_count in enumerate(series_b)
+    }
 
     fig, axes = plt.subplots(1, 3, figsize=(16, 4.6))
-    for index, (task_count, points) in enumerate(series.items()):
-        color = colors[index % len(colors)]
-        marker = markers[index % len(markers)]
-        label = f"# of Tasks - {task_count}"
+    # Panel (a): the six-point tau grid used by the paper's Figure 7(a).
+    for task_count, points in series_a.items():
+        color, marker = styles[task_count]
         axes[0].plot(
             [point["tau"] for point in points],
             [point["ace"] for point in points],
@@ -1032,8 +1051,13 @@ def figure_e7(results: list[dict[str, Any]], output_dir: Path) -> Path | None:
             markersize=4.5,
             markerfacecolor="white",
             linewidth=1.4,
-            label=label,
+            label=f"# of Tasks - {task_count}",
         )
+    # Panels (b)/(c): all tau values, including the small ones that produce
+    # the model-number and model-ratio sweeps.
+    for task_count, points in series_b.items():
+        color, marker = styles[task_count]
+        label = f"# of Tasks - {task_count}"
         ordered = sorted(points, key=lambda item: item["ratio"])
         axes[1].plot(
             [point["n_models"] for point in ordered],
@@ -1059,13 +1083,13 @@ def figure_e7(results: list[dict[str, Any]], output_dir: Path) -> Path | None:
     axes[0].set_xlim(-0.5, 25.5)
     axes[0].set_xticks([0, 5, 10, 15, 20, 25])
     axes[0].set_xlabel(r"$\tau$")
-    axes[0].set_ylabel("ACE")
+    axes[0].set_ylabel("ACE (%)")
     # Match the paper's Figure 7(a): raw ACE (%) on a 10-35 axis.  Keep
     # headroom in case a reproduction run falls outside that range.
-    aces = [point["ace"] for points in series.values() for point in points]
+    aces = [point["ace"] for points in series_a.values() for point in points]
     axes[0].set_ylim(
-        bottom=min(10.0, min(aces) - 1.0),
-        top=max(35.0, max(aces) + 1.0),
+        bottom=10.0 if min(aces) >= 10.0 else min(aces) - 1.0,
+        top=35.0 if max(aces) <= 35.0 else max(aces) + 1.0,
     )
     axes[0].legend(loc="upper left", fontsize=6.5, frameon=True)
 
@@ -1082,7 +1106,7 @@ def figure_e7(results: list[dict[str, Any]], output_dir: Path) -> Path | None:
     axes[2].set_title("Model Ratio - Performance", fontsize=10)
     axes[2].legend(loc="upper right", fontsize=6.5, frameon=True)
 
-    for axis, label in zip(axes, ["(a)", "(b)", "(b)"]):
+    for axis, label in zip(axes, ["(a)", "(b)", "(c)"]):
         axis.text(
             0.5,
             -0.28,
@@ -1334,6 +1358,11 @@ def build_report(
         "### Selected-model ratio (%)",
         "",
         table_e7_ratio(load_results(results_dir, "e7_akloms_models")),
+        "",
+        "Panel (a) follows the chart itself: raw ACE (%) on the paper's",
+        "`tau = 0..25` and 10-35 axes. The sentence below Figure 7 that",
+        "describes an ACE ratio is treated as an editorial error, so no ratio",
+        "normalization is applied.",
         "",
         "## E8: runtime scaling (paper Figure 8)",
         "",

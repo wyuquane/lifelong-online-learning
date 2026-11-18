@@ -154,10 +154,10 @@ the evaluation instant is not identical across methods.
 The old strict final-state results for AKLO, TranOL and OTB, including their
 W&B runs, were deleted on 17 Nov 2026 and rerun with the frozen per-task
 predictors; ITOL, TOL and Unif_Sum were kept. The earlier per-task E3 protocol
-and its `e3_task_test` group were removed before that. E3 now runs under group
-`e3_catastrophic-forgetting` with names
-`e3_catastrophic-forgetting-<dataset>-<method>-s<seed>`. OTB is undefined for
-regression.
+and its `e3_task_test` runs were removed before that. E3 now uses the names
+`e3_catastrophic-forgetting-<dataset>-<method>-s<seed>`; each configuration
+(same name without `-s<seed>`) is one W&B group and every run is tagged
+`experiment-e3_catastrophic-forgetting`. OTB is undefined for regression.
 
 The paper's Table 2 numbers are close to its Table 1 numbers, which suggests
 the original implementation evaluated each task's model shortly after

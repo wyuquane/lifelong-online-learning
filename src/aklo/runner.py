@@ -614,7 +614,7 @@ def execute_run(
             "base": base,
         },
         run_name=run_name,
-        group=spec.experiment,
+        group=_safe_name(spec.group + ("-smoke" if smoke else "")),
         tags=[spec.dataset, spec.method, f"seed-{spec.seed}", *spec.tags],
         enabled=wandb_enabled,
     )

@@ -47,14 +47,18 @@ def _make_spec(
     notes: dict[str, Any] | None = None,
 ) -> RunSpec:
     run_name = f"{experiment_name}-{dataset_name}-{method}{suffix}-s{seed}"
+    # One W&B group per configuration: every seed of the same run name (minus
+    # the seed suffix) belongs to the same group.  W&B has a single ``group``
+    # field and no nested groups, so the experiment name is kept as a tag.
+    group = run_name[: -len(f"-s{seed}")]
     return RunSpec(
         experiment=experiment_name,
         dataset=dataset_name,
         method=method,
         seed=seed,
         run_name=run_name,
-        group=experiment_name,
-        tags=[dataset_name, method, f"seed-{seed}"],
+        group=group,
+        tags=[f"experiment-{experiment_name}"],
         data_config=datasets[dataset_name],
         model_config=models[method],
         data_overrides=dict(data_overrides or {}),

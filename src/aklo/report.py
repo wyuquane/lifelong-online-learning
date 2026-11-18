@@ -9,9 +9,11 @@ committed experiment configuration plus the public W&B runs.
 from __future__ import annotations
 
 import json
+import re
 from collections import defaultdict
 from pathlib import Path
 from typing import Any, Iterable
+from urllib.parse import quote
 
 import numpy as np
 
@@ -325,17 +327,40 @@ def _mean_int(values: list[float]) -> str:
     return str(int(round(float(np.mean(values)))))
 
 
-def _link(value: str, result: dict[str, Any] | None) -> str:
-    if result is None:
-        return value
-    url = result.get("summary", {}).get("wandb_url")
-    if not url:
-        return value
-    return f"[{value}]({url})"
+def _wandb_group_name(result: dict[str, Any]) -> str | None:
+    """Return the configuration group: the run name without its seed suffix."""
+    run_name = result.get("run_name")
+    if not run_name:
+        return None
+    return re.sub(r"-s\d+$", "", str(run_name))
 
 
-def _first(results: list[dict[str, Any]]) -> dict[str, Any] | None:
-    return results[0] if results else None
+def _wandb_group_url(result: dict[str, Any]) -> str | None:
+    """Build the W&B group URL from the run URL and configuration group."""
+    run_url = result.get("summary", {}).get("wandb_url")
+    group = _wandb_group_name(result)
+    if not run_url or not group:
+        return None
+    base = str(run_url).split("/runs/", 1)[0]
+    if base == str(run_url):
+        return None
+    return f"{base}/groups/{quote(group, safe='')}"
+
+
+def _link(
+    value: str,
+    results: dict[str, Any] | list[dict[str, Any]] | None,
+) -> str:
+    """Link a table cell to the W&B group holding every seed of its config."""
+    if results is None:
+        return value
+    if isinstance(results, dict):
+        results = [results]
+    for result in results:
+        url = _wandb_group_url(result)
+        if url:
+            return f"[{value}]({url})"
+    return value
 
 
 def _markdown_table(headers: list[str], rows: list[list[str]]) -> str:
@@ -392,7 +417,7 @@ def _method_by_dataset_table(
             group = _method_results(results, dataset, method)
             values = _values(group, value_key, scale=_ace_scale)
             cells.append(
-                _link(_mean_std(values), _first(group)) if values else "–"
+                _link(_mean_std(values), group) if values else "–"
             )
         rows.append(cells)
     return _markdown_table(headers, rows)
@@ -423,7 +448,7 @@ def table_e1_paper(results: list[dict[str, Any]]) -> str:
                     dataset,
                     METHOD_LABELS[method],
                     f"{paper_value:.2f}",
-                    _link(_mean_std(reproduction), _first(group)),
+                    _link(_mean_std(reproduction), group),
                 ]
             )
     return _markdown_table(headers, rows)
@@ -454,7 +479,7 @@ def table_e2(results: list[dict[str, Any]]) -> str:
                 and int(result["config"].get("data_overrides", {}).get("n_samples", -1))
                 == n_samples
             ]
-            cells.append(_link(_mean_std(_values(group, "final_cumulative_ace", _ace_scale)), _first(group)))
+            cells.append(_link(_mean_std(_values(group, "final_cumulative_ace", _ace_scale)), group))
         rows.append(cells)
     return _markdown_table(headers, rows)
 
@@ -496,7 +521,7 @@ def table_e3_paper(results: list[dict[str, Any]]) -> str:
                                 _ace_scale,
                             )
                         ),
-                        _first(group),
+                        group,
                     ),
                 ]
             )
@@ -515,15 +540,19 @@ def _sensitivity_table(
     # Runs that do not override this parameter belong to the sweeps of the
     # other parameters and must not be pooled into a spurious "None" row.
     groups.pop(None, None)
-    headers = [parameter, ace_label, "W&B"]
+    headers = [parameter, ace_label]
     rows = []
     for value in sorted(groups, key=lambda item: (item is None, item)):
         group = groups[value]
         rows.append(
             [
                 f"{value:g}" if isinstance(value, (int, float)) else str(value),
-                _mean_std(_values(group, "final_cumulative_ace", _ace_scale)),
-                _link("run", _first(group)),
+                _link(
+                    _mean_std(
+                        _values(group, "final_cumulative_ace", _ace_scale)
+                    ),
+                    group,
+                ),
             ]
         )
     if not rows:
@@ -565,7 +594,7 @@ def table_e6(results: list[dict[str, Any]]) -> str:
                     _mean_std(
                         _values(group, "final_cumulative_ace", _ace_scale)
                     ),
-                    _first(group),
+                    group,
                 )
             )
         rows.append(cells)
@@ -599,7 +628,14 @@ def table_e7(results: list[dict[str, Any]]) -> str:
                 and float(result["config"].get("model_overrides", {}).get("tau", -1.0))
                 == tau
             ]
-            cells.append(_mean_std(_values(group, "final_cumulative_ace", _ace_scale)))
+            cells.append(
+                _link(
+                    _mean_std(
+                        _values(group, "final_cumulative_ace", _ace_scale)
+                    ),
+                    group,
+                )
+            )
         rows.append(cells)
     return _markdown_table(headers, rows)
 
@@ -635,7 +671,9 @@ def table_e7_ratio(results: list[dict[str, Any]]) -> str:
                 for result in group
             ]
             ratios = [float(value) for value in ratios if value is not None]
-            cells.append(_mean_std([value * 100.0 for value in ratios]))
+            cells.append(
+                _link(_mean_std([value * 100.0 for value in ratios]), group)
+            )
         rows.append(cells)
     return _markdown_table(headers, rows)
 
@@ -680,7 +718,11 @@ def table_e8(results: list[dict[str, Any]]) -> str:
                     and int(result["config"]["notes"]["n_samples"]) == n_samples
                 ]
                 values = _values(group, "train_seconds")
-                cells.append(_mean_std(values, decimals=3) if values else "-")
+                cells.append(
+                    _link(_mean_std(values, decimals=3), group)
+                    if values
+                    else "-"
+                )
             rows.append(cells)
         lines.append(_markdown_table(headers, rows))
     else:
@@ -712,7 +754,11 @@ def table_e8(results: list[dict[str, Any]]) -> str:
                     and float(result["config"]["notes"]["tau"]) == tau
                 ]
                 values = _values(group, "train_seconds")
-                cells.append(_mean_std(values, decimals=3) if values else "-")
+                cells.append(
+                    _link(_mean_std(values, decimals=3), group)
+                    if values
+                    else "-"
+                )
             rows.append(cells)
         lines.append(_markdown_table(headers, rows))
     else:
@@ -1248,7 +1294,9 @@ def build_report(
         "`data_seed=0`, and only the task and example order changes. Tables",
         "report the mean ± standard deviation over the ten seeds; figures show",
         "the mean. Classification ACE is a percentage; regression ACE is on the",
-        "target scale. W&B links are included when the run was tracked online.",
+        "target scale. Each number links to the W&B group that holds all ten",
+        "seeds of that configuration; links are omitted when the run was not",
+        "tracked online.",
         "",
         "## E1: main comparison (paper Table 1)",
         "",

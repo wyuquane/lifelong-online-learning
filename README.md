@@ -48,18 +48,20 @@ the local files.
 
 | ID | Paper element | Config | Command | W&B |
 | --- | --- | --- | --- | --- |
-| E1 | Table 1: main comparison | [`e1_main.yaml`](configs/experiments/e1_main.yaml) | `python scripts/run.py --experiment e1_main` | [group](https://forge.coreweave.com/wandb/AI-Athena-Lab/AKLO-lifelong-online-learning/groups/e1_main) |
-| E2 | Figure 3: effect of `m_t` | [`e2_small_m.yaml`](configs/experiments/e2_small_m.yaml) | `python scripts/run.py --experiment e2_small_m` | [group](https://forge.coreweave.com/wandb/AI-Athena-Lab/AKLO-lifelong-online-learning/groups/e2_small_m) |
-| E3 | Table 2: catastrophic forgetting (per-task snapshots, 10 seeds) | [`e3_catastrophic-forgetting.yaml`](configs/experiments/e3_catastrophic-forgetting.yaml) | `python scripts/run.py --experiment e3_catastrophic-forgetting` | [group](https://forge.coreweave.com/wandb/AI-Athena-Lab/AKLO-lifelong-online-learning/groups/e3_catastrophic-forgetting) |
-| E4 | Figure 4: classification sensitivity | [`e4_sensitivity_cls.yaml`](configs/experiments/e4_sensitivity_cls.yaml) | `python scripts/run.py --experiment e4_sensitivity_cls` | [group](https://forge.coreweave.com/wandb/AI-Athena-Lab/AKLO-lifelong-online-learning/groups/e4_sensitivity_cls) |
-| E5 | Figure 5: regression sensitivity | [`e5_sensitivity_reg.yaml`](configs/experiments/e5_sensitivity_reg.yaml) | `python scripts/run.py --experiment e5_sensitivity_reg` | [group](https://forge.coreweave.com/wandb/AI-Athena-Lab/AKLO-lifelong-online-learning/groups/e5_sensitivity_reg) |
-| E6 | Table 3: AKLOMS `tau` | [`e6_akloms_tau.yaml`](configs/experiments/e6_akloms_tau.yaml) | `python scripts/run.py --experiment e6_akloms_tau` | [group](https://forge.coreweave.com/wandb/AI-Athena-Lab/AKLO-lifelong-online-learning/groups/e6_akloms_tau) |
-| E7 | Figure 7: AKLOMS model selection | [`e7_akloms_models.yaml`](configs/experiments/e7_akloms_models.yaml) | `python scripts/run.py --experiment e7_akloms_models` | [group](https://forge.coreweave.com/wandb/AI-Athena-Lab/AKLO-lifelong-online-learning/groups/e7_akloms_models) |
-| E8 | Figure 8: runtime | [`e8_runtime.yaml`](configs/experiments/e8_runtime.yaml) | `python scripts/run.py --experiment e8_runtime` | [group](https://forge.coreweave.com/wandb/AI-Athena-Lab/AKLO-lifelong-online-learning/groups/e8_runtime) |
+| E1 | Table 1: main comparison | [`e1_main.yaml`](configs/experiments/e1_main.yaml) | `python scripts/run.py --experiment e1_main` | `e1_main-*` (39 groups) |
+| E2 | Figure 3: effect of `m_t` | [`e2_small_m.yaml`](configs/experiments/e2_small_m.yaml) | `python scripts/run.py --experiment e2_small_m` | `e2_small_m-*` (48 groups) |
+| E3 | Table 2: catastrophic forgetting (per-task snapshots, 10 seeds) | [`e3_catastrophic-forgetting.yaml`](configs/experiments/e3_catastrophic-forgetting.yaml) | `python scripts/run.py --experiment e3_catastrophic-forgetting` | `e3_catastrophic-forgetting-*` (39 groups) |
+| E4 | Figure 4: classification sensitivity | [`e4_sensitivity_cls.yaml`](configs/experiments/e4_sensitivity_cls.yaml) | `python scripts/run.py --experiment e4_sensitivity_cls` | `e4_sensitivity_cls-*` (18 groups) |
+| E5 | Figure 5: regression sensitivity | [`e5_sensitivity_reg.yaml`](configs/experiments/e5_sensitivity_reg.yaml) | `python scripts/run.py --experiment e5_sensitivity_reg` | `e5_sensitivity_reg-*` (18 groups) |
+| E6 | Table 3: AKLOMS `tau` | [`e6_akloms_tau.yaml`](configs/experiments/e6_akloms_tau.yaml) | `python scripts/run.py --experiment e6_akloms_tau` | `e6_akloms_tau-*` (63 groups) |
+| E7 | Figure 7: AKLOMS model selection | [`e7_akloms_models.yaml`](configs/experiments/e7_akloms_models.yaml) | `python scripts/run.py --experiment e7_akloms_models` | `e7_akloms_models-*` (60 groups) |
+| E8 | Figure 8: runtime | [`e8_runtime.yaml`](configs/experiments/e8_runtime.yaml) | `python scripts/run.py --experiment e8_runtime` | `e8_runtime-*` (96 groups) |
 
 The table above is the quick map. `reports/report.md` contains the full
-tables and per-run links, including every seed and hyperparameter value.
-The experiment configs are expanded by
+tables; each number links to the W&B group holding all ten seeds of that
+configuration. Every run also has an `experiment-<name>` tag, so the runs
+table can be filtered to one experiment even though the `group` field is
+reserved for configurations. The experiment configs are expanded by
 [`src/aklo/experiments/__init__.py`](src/aklo/experiments/__init__.py); the
 runner is [`src/aklo/runner.py`](src/aklo/runner.py).
 
@@ -70,13 +72,13 @@ over seeds 0–9. Lower is better. Paper values are from Table 1 of the paper.
 
 | Dataset | ITOL | TOL | Unif_Sum | TranOL | OTB | AKLO (ours) | AKLO (paper) |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
-| syn1 | 37.05 ± 0.47 | 23.86 ± 0.35 | 49.65 ± 0.73 | 36.71 ± 1.67 | 19.84 ± 0.66 | **12.29 ± 0.83** | 10.10 |
-| syn2 | 38.17 ± 0.51 | 37.82 ± 0.63 | 50.36 ± 0.83 | 43.11 ± 1.04 | 37.79 ± 0.61 | **10.72 ± 0.78** | 10.16 |
-| Landmine | 39.35 ± 0.85 | 38.93 ± 1.49 | 51.97 ± 8.85 | 41.03 ± 2.90 | 33.71 ± 1.73 | **30.96 ± 1.36** | 7.30 |
-| Spam | 25.76 ± 0.90 | 20.37 ± 0.80 | 24.51 ± 3.85 | 20.94 ± 1.77 | **18.34 ± 0.64** | 20.93 ± 1.61 | 17.36 |
-| syn3 | 7.94 ± 0.01 | 7.93 ± 0.01 | 1.52 ± 0.11 | 5.17 ± 0.10 | – | **0.96 ± 0.10** | 4.06 |
-| syn4 | 5.17 ± 0.01 | 5.18 ± 0.01 | 1.39 ± 0.09 | 3.61 ± 0.06 | – | **1.00 ± 0.10** | 2.98 |
-| London | 14.81 ± 0.01 | 12.60 ± 0.03 | 14.89 ± 0.10 | 13.21 ± 0.06 | – | **11.77 ± 0.09** | 10.05 |
+| syn1 | [37.05 ± 0.47](https://forge.coreweave.com/wandb/AI-Athena-Lab/AKLO-lifelong-online-learning/groups/e1_main-syn1-itol) | [23.86 ± 0.35](https://forge.coreweave.com/wandb/AI-Athena-Lab/AKLO-lifelong-online-learning/groups/e1_main-syn1-tol) | [49.65 ± 0.73](https://forge.coreweave.com/wandb/AI-Athena-Lab/AKLO-lifelong-online-learning/groups/e1_main-syn1-unif_sum) | [36.71 ± 1.67](https://forge.coreweave.com/wandb/AI-Athena-Lab/AKLO-lifelong-online-learning/groups/e1_main-syn1-tranol) | [19.84 ± 0.66](https://forge.coreweave.com/wandb/AI-Athena-Lab/AKLO-lifelong-online-learning/groups/e1_main-syn1-otb) | **[12.29 ± 0.83](https://forge.coreweave.com/wandb/AI-Athena-Lab/AKLO-lifelong-online-learning/groups/e1_main-syn1-aklo)** | 10.10 |
+| syn2 | [38.17 ± 0.51](https://forge.coreweave.com/wandb/AI-Athena-Lab/AKLO-lifelong-online-learning/groups/e1_main-syn2-itol) | [37.82 ± 0.63](https://forge.coreweave.com/wandb/AI-Athena-Lab/AKLO-lifelong-online-learning/groups/e1_main-syn2-tol) | [50.36 ± 0.83](https://forge.coreweave.com/wandb/AI-Athena-Lab/AKLO-lifelong-online-learning/groups/e1_main-syn2-unif_sum) | [43.11 ± 1.04](https://forge.coreweave.com/wandb/AI-Athena-Lab/AKLO-lifelong-online-learning/groups/e1_main-syn2-tranol) | [37.79 ± 0.61](https://forge.coreweave.com/wandb/AI-Athena-Lab/AKLO-lifelong-online-learning/groups/e1_main-syn2-otb) | **[10.72 ± 0.78](https://forge.coreweave.com/wandb/AI-Athena-Lab/AKLO-lifelong-online-learning/groups/e1_main-syn2-aklo)** | 10.16 |
+| Landmine | [39.35 ± 0.85](https://forge.coreweave.com/wandb/AI-Athena-Lab/AKLO-lifelong-online-learning/groups/e1_main-landmine-itol) | [38.93 ± 1.49](https://forge.coreweave.com/wandb/AI-Athena-Lab/AKLO-lifelong-online-learning/groups/e1_main-landmine-tol) | [51.97 ± 8.85](https://forge.coreweave.com/wandb/AI-Athena-Lab/AKLO-lifelong-online-learning/groups/e1_main-landmine-unif_sum) | [41.03 ± 2.90](https://forge.coreweave.com/wandb/AI-Athena-Lab/AKLO-lifelong-online-learning/groups/e1_main-landmine-tranol) | [33.71 ± 1.73](https://forge.coreweave.com/wandb/AI-Athena-Lab/AKLO-lifelong-online-learning/groups/e1_main-landmine-otb) | **[30.96 ± 1.36](https://forge.coreweave.com/wandb/AI-Athena-Lab/AKLO-lifelong-online-learning/groups/e1_main-landmine-aklo)** | 7.30 |
+| Spam | [25.76 ± 0.90](https://forge.coreweave.com/wandb/AI-Athena-Lab/AKLO-lifelong-online-learning/groups/e1_main-spam-itol) | [20.37 ± 0.80](https://forge.coreweave.com/wandb/AI-Athena-Lab/AKLO-lifelong-online-learning/groups/e1_main-spam-tol) | [24.51 ± 3.85](https://forge.coreweave.com/wandb/AI-Athena-Lab/AKLO-lifelong-online-learning/groups/e1_main-spam-unif_sum) | [20.94 ± 1.77](https://forge.coreweave.com/wandb/AI-Athena-Lab/AKLO-lifelong-online-learning/groups/e1_main-spam-tranol) | **[18.34 ± 0.64](https://forge.coreweave.com/wandb/AI-Athena-Lab/AKLO-lifelong-online-learning/groups/e1_main-spam-otb)** | [20.93 ± 1.61](https://forge.coreweave.com/wandb/AI-Athena-Lab/AKLO-lifelong-online-learning/groups/e1_main-spam-aklo) | 17.36 |
+| syn3 | [7.94 ± 0.01](https://forge.coreweave.com/wandb/AI-Athena-Lab/AKLO-lifelong-online-learning/groups/e1_main-syn3-itol) | [7.93 ± 0.01](https://forge.coreweave.com/wandb/AI-Athena-Lab/AKLO-lifelong-online-learning/groups/e1_main-syn3-tol) | [1.52 ± 0.11](https://forge.coreweave.com/wandb/AI-Athena-Lab/AKLO-lifelong-online-learning/groups/e1_main-syn3-unif_sum) | [5.17 ± 0.10](https://forge.coreweave.com/wandb/AI-Athena-Lab/AKLO-lifelong-online-learning/groups/e1_main-syn3-tranol) | – | **[0.96 ± 0.10](https://forge.coreweave.com/wandb/AI-Athena-Lab/AKLO-lifelong-online-learning/groups/e1_main-syn3-aklo)** | 4.06 |
+| syn4 | [5.17 ± 0.01](https://forge.coreweave.com/wandb/AI-Athena-Lab/AKLO-lifelong-online-learning/groups/e1_main-syn4-itol) | [5.18 ± 0.01](https://forge.coreweave.com/wandb/AI-Athena-Lab/AKLO-lifelong-online-learning/groups/e1_main-syn4-tol) | [1.39 ± 0.09](https://forge.coreweave.com/wandb/AI-Athena-Lab/AKLO-lifelong-online-learning/groups/e1_main-syn4-unif_sum) | [3.61 ± 0.06](https://forge.coreweave.com/wandb/AI-Athena-Lab/AKLO-lifelong-online-learning/groups/e1_main-syn4-tranol) | – | **[1.00 ± 0.10](https://forge.coreweave.com/wandb/AI-Athena-Lab/AKLO-lifelong-online-learning/groups/e1_main-syn4-aklo)** | 2.98 |
+| London | [14.81 ± 0.01](https://forge.coreweave.com/wandb/AI-Athena-Lab/AKLO-lifelong-online-learning/groups/e1_main-london-itol) | [12.60 ± 0.03](https://forge.coreweave.com/wandb/AI-Athena-Lab/AKLO-lifelong-online-learning/groups/e1_main-london-tol) | [14.89 ± 0.10](https://forge.coreweave.com/wandb/AI-Athena-Lab/AKLO-lifelong-online-learning/groups/e1_main-london-unif_sum) | [13.21 ± 0.06](https://forge.coreweave.com/wandb/AI-Athena-Lab/AKLO-lifelong-online-learning/groups/e1_main-london-tranol) | – | **[11.77 ± 0.09](https://forge.coreweave.com/wandb/AI-Athena-Lab/AKLO-lifelong-online-learning/groups/e1_main-london-aklo)** | 10.05 |
 
 AKLO is the best method on six of the seven datasets. The exception is Spam,
 where OTB is better (18.34 vs 20.93). The qualitative conclusion of
@@ -161,8 +163,11 @@ changes during the test pass. The primary metric is the task-averaged test ACE
 (`final_test_ace_task_mean`), with pooled test ACE (`final_test_ace_pooled`) as
 secondary. Classification ACE is multiplied by 100; regression ACE is on the
 target scale. OTB is undefined for regression. The old per-task E3 protocol
-and its `e3_task_test` W&B runs were removed; the current group is
-[`e3_catastrophic-forgetting`](https://forge.coreweave.com/wandb/AI-Athena-Lab/AKLO-lifelong-online-learning/groups/e3_catastrophic-forgetting).
+and its `e3_task_test` W&B runs were removed. The current runs are grouped by
+configuration (`e3_catastrophic-forgetting-*`) and tagged
+`experiment-e3_catastrophic-forgetting`; use the
+[project runs table](https://forge.coreweave.com/wandb/AI-Athena-Lab/AKLO-lifelong-online-learning/runs)
+to filter them.
 
 Task-averaged test ACE (%), mean ± standard deviation over seeds 0–9. Lower is
 better; the best method per dataset is bold. The last column is the paper's
@@ -170,13 +175,13 @@ Table 2 AKLO value.
 
 | Dataset | ITOL | TOL | Unif_Sum | TranOL | OTB | AKLO (ours) | AKLO (paper) |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
-| syn1 | 35.87 ± 2.50 | 38.32 ± 10.02 | 50.01 ± 0.20 | 37.07 ± 1.90 | **18.37 ± 1.76** | 19.61 ± 2.93 | 8.78 |
-| syn2 | 33.91 ± 1.89 | 49.87 ± 0.60 | 49.90 ± 0.49 | 42.22 ± 1.86 | 35.47 ± 1.25 | **16.50 ± 2.79** | 8.34 |
-| Landmine | 37.95 ± 1.43 | 46.79 ± 13.53 | 55.44 ± 2.09 | 40.07 ± 2.61 | **33.06 ± 1.86** | 33.25 ± 1.27 | 6.78 |
-| Spam | 20.00 ± 1.75 | 22.93 ± 7.81 | 20.81 ± 4.85 | 18.82 ± 1.70 | **15.59 ± 1.63** | 19.67 ± 2.70 | 9.97 |
-| syn3 | 6.90 ± 0.66 | 6.76 ± 4.16 | 1.77 ± 0.56 | 5.39 ± 0.72 | – | **1.40 ± 0.31** | 3.58 |
-| syn4 | 4.83 ± 0.36 | 4.28 ± 2.99 | 1.29 ± 0.15 | 3.49 ± 0.36 | – | **1.28 ± 0.23** | 2.34 |
-| London | 12.77 ± 0.03 | 13.86 ± 0.95 | 14.75 ± 0.03 | 12.65 ± 0.07 | – | **11.63 ± 0.08** | 9.57 |
+| syn1 | [35.87 ± 2.50](https://forge.coreweave.com/wandb/AI-Athena-Lab/AKLO-lifelong-online-learning/groups/e3_catastrophic-forgetting-syn1-itol) | [38.32 ± 10.02](https://forge.coreweave.com/wandb/AI-Athena-Lab/AKLO-lifelong-online-learning/groups/e3_catastrophic-forgetting-syn1-tol) | [50.01 ± 0.20](https://forge.coreweave.com/wandb/AI-Athena-Lab/AKLO-lifelong-online-learning/groups/e3_catastrophic-forgetting-syn1-unif_sum) | [37.07 ± 1.90](https://forge.coreweave.com/wandb/AI-Athena-Lab/AKLO-lifelong-online-learning/groups/e3_catastrophic-forgetting-syn1-tranol) | **[18.37 ± 1.76](https://forge.coreweave.com/wandb/AI-Athena-Lab/AKLO-lifelong-online-learning/groups/e3_catastrophic-forgetting-syn1-otb)** | [19.61 ± 2.93](https://forge.coreweave.com/wandb/AI-Athena-Lab/AKLO-lifelong-online-learning/groups/e3_catastrophic-forgetting-syn1-aklo) | 8.78 |
+| syn2 | [33.91 ± 1.89](https://forge.coreweave.com/wandb/AI-Athena-Lab/AKLO-lifelong-online-learning/groups/e3_catastrophic-forgetting-syn2-itol) | [49.87 ± 0.60](https://forge.coreweave.com/wandb/AI-Athena-Lab/AKLO-lifelong-online-learning/groups/e3_catastrophic-forgetting-syn2-tol) | [49.90 ± 0.49](https://forge.coreweave.com/wandb/AI-Athena-Lab/AKLO-lifelong-online-learning/groups/e3_catastrophic-forgetting-syn2-unif_sum) | [42.22 ± 1.86](https://forge.coreweave.com/wandb/AI-Athena-Lab/AKLO-lifelong-online-learning/groups/e3_catastrophic-forgetting-syn2-tranol) | [35.47 ± 1.25](https://forge.coreweave.com/wandb/AI-Athena-Lab/AKLO-lifelong-online-learning/groups/e3_catastrophic-forgetting-syn2-otb) | **[16.50 ± 2.79](https://forge.coreweave.com/wandb/AI-Athena-Lab/AKLO-lifelong-online-learning/groups/e3_catastrophic-forgetting-syn2-aklo)** | 8.34 |
+| Landmine | [37.95 ± 1.43](https://forge.coreweave.com/wandb/AI-Athena-Lab/AKLO-lifelong-online-learning/groups/e3_catastrophic-forgetting-landmine-itol) | [46.79 ± 13.53](https://forge.coreweave.com/wandb/AI-Athena-Lab/AKLO-lifelong-online-learning/groups/e3_catastrophic-forgetting-landmine-tol) | [55.44 ± 2.09](https://forge.coreweave.com/wandb/AI-Athena-Lab/AKLO-lifelong-online-learning/groups/e3_catastrophic-forgetting-landmine-unif_sum) | [40.07 ± 2.61](https://forge.coreweave.com/wandb/AI-Athena-Lab/AKLO-lifelong-online-learning/groups/e3_catastrophic-forgetting-landmine-tranol) | **[33.06 ± 1.86](https://forge.coreweave.com/wandb/AI-Athena-Lab/AKLO-lifelong-online-learning/groups/e3_catastrophic-forgetting-landmine-otb)** | [33.25 ± 1.27](https://forge.coreweave.com/wandb/AI-Athena-Lab/AKLO-lifelong-online-learning/groups/e3_catastrophic-forgetting-landmine-aklo) | 6.78 |
+| Spam | [20.00 ± 1.75](https://forge.coreweave.com/wandb/AI-Athena-Lab/AKLO-lifelong-online-learning/groups/e3_catastrophic-forgetting-spam-itol) | [22.93 ± 7.81](https://forge.coreweave.com/wandb/AI-Athena-Lab/AKLO-lifelong-online-learning/groups/e3_catastrophic-forgetting-spam-tol) | [20.81 ± 4.85](https://forge.coreweave.com/wandb/AI-Athena-Lab/AKLO-lifelong-online-learning/groups/e3_catastrophic-forgetting-spam-unif_sum) | [18.82 ± 1.70](https://forge.coreweave.com/wandb/AI-Athena-Lab/AKLO-lifelong-online-learning/groups/e3_catastrophic-forgetting-spam-tranol) | **[15.59 ± 1.63](https://forge.coreweave.com/wandb/AI-Athena-Lab/AKLO-lifelong-online-learning/groups/e3_catastrophic-forgetting-spam-otb)** | [19.67 ± 2.70](https://forge.coreweave.com/wandb/AI-Athena-Lab/AKLO-lifelong-online-learning/groups/e3_catastrophic-forgetting-spam-aklo) | 9.97 |
+| syn3 | [6.90 ± 0.66](https://forge.coreweave.com/wandb/AI-Athena-Lab/AKLO-lifelong-online-learning/groups/e3_catastrophic-forgetting-syn3-itol) | [6.76 ± 4.16](https://forge.coreweave.com/wandb/AI-Athena-Lab/AKLO-lifelong-online-learning/groups/e3_catastrophic-forgetting-syn3-tol) | [1.77 ± 0.56](https://forge.coreweave.com/wandb/AI-Athena-Lab/AKLO-lifelong-online-learning/groups/e3_catastrophic-forgetting-syn3-unif_sum) | [5.39 ± 0.72](https://forge.coreweave.com/wandb/AI-Athena-Lab/AKLO-lifelong-online-learning/groups/e3_catastrophic-forgetting-syn3-tranol) | – | **[1.40 ± 0.31](https://forge.coreweave.com/wandb/AI-Athena-Lab/AKLO-lifelong-online-learning/groups/e3_catastrophic-forgetting-syn3-aklo)** | 3.58 |
+| syn4 | [4.83 ± 0.36](https://forge.coreweave.com/wandb/AI-Athena-Lab/AKLO-lifelong-online-learning/groups/e3_catastrophic-forgetting-syn4-itol) | [4.28 ± 2.99](https://forge.coreweave.com/wandb/AI-Athena-Lab/AKLO-lifelong-online-learning/groups/e3_catastrophic-forgetting-syn4-tol) | [1.29 ± 0.15](https://forge.coreweave.com/wandb/AI-Athena-Lab/AKLO-lifelong-online-learning/groups/e3_catastrophic-forgetting-syn4-unif_sum) | [3.49 ± 0.36](https://forge.coreweave.com/wandb/AI-Athena-Lab/AKLO-lifelong-online-learning/groups/e3_catastrophic-forgetting-syn4-tranol) | – | **[1.28 ± 0.23](https://forge.coreweave.com/wandb/AI-Athena-Lab/AKLO-lifelong-online-learning/groups/e3_catastrophic-forgetting-syn4-aklo)** | 2.34 |
+| London | [12.77 ± 0.03](https://forge.coreweave.com/wandb/AI-Athena-Lab/AKLO-lifelong-online-learning/groups/e3_catastrophic-forgetting-london-itol) | [13.86 ± 0.95](https://forge.coreweave.com/wandb/AI-Athena-Lab/AKLO-lifelong-online-learning/groups/e3_catastrophic-forgetting-london-tol) | [14.75 ± 0.03](https://forge.coreweave.com/wandb/AI-Athena-Lab/AKLO-lifelong-online-learning/groups/e3_catastrophic-forgetting-london-unif_sum) | [12.65 ± 0.07](https://forge.coreweave.com/wandb/AI-Athena-Lab/AKLO-lifelong-online-learning/groups/e3_catastrophic-forgetting-london-tranol) | – | **[11.63 ± 0.08](https://forge.coreweave.com/wandb/AI-Athena-Lab/AKLO-lifelong-online-learning/groups/e3_catastrophic-forgetting-london-aklo)** | 9.57 |
 
 E3 is a hybrid protocol: ITOL, AKLO, TranOL and OTB use per-task snapshots,
 while TOL and Unif_Sum use stricter global predictors. Under it AKLO is best on
@@ -241,7 +246,9 @@ All tracked runs are in the public project
 
 Each run logs its config, per-task ACE, cumulative ACE, model state, E3
 per-task diagnostics, the E3 test metrics, and sample-level running ACE. No
-artifacts are uploaded.
+artifacts are uploaded. Runs that differ only by seed share one group named
+after the configuration (`e1_main-syn1-aklo`, ...); the experiment is kept as
+an `experiment-<name>` tag because W&B has no nested groups.
 See
 [`docs/wandb.md`](docs/wandb.md) for setup, commands, and the run-naming
 convention.

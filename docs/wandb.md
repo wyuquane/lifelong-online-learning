@@ -55,8 +55,11 @@ does not change the computation.
 
 ## 3. What is logged
 
-Each run is named `<experiment>-<dataset>-<method>[-<overrides>]-s<seed>` and
-grouped by experiment. Tags include the dataset, method, and seed.
+Each run is named `<experiment>-<dataset>-<method>[-<overrides>]-s<seed>`.
+Runs that differ only by seed share one group: the run name without the
+`-s<seed>` suffix. For example, `e1_main-syn1-aklo-s0` through
+`e1_main-syn1-aklo-s9` belong to `e1_main-syn1-aklo`. Tags include the
+dataset, method, seed, and `experiment-<name>`.
 
 Per-task metrics (step = task index):
 
@@ -94,21 +97,29 @@ Open:
 https://forge.coreweave.com/wandb/AI-Athena-Lab/AKLO-lifelong-online-learning
 ```
 
-The group view for one experiment is:
+The group view for one configuration is:
 
 ```
-https://forge.coreweave.com/wandb/AI-Athena-Lab/AKLO-lifelong-online-learning/groups/<experiment>
+https://forge.coreweave.com/wandb/AI-Athena-Lab/AKLO-lifelong-online-learning/groups/<configuration>
 ```
 
-for example `.../groups/e1_main` or
-`.../groups/e3_catastrophic-forgetting`.
+for example `.../groups/e1_main-syn1-aklo` or
+`.../groups/e3_catastrophic-forgetting-syn1-itol`. Each such group contains
+the ten seeds of that configuration.
+
+W&B has one `group` field per run and no nested groups, so the experiment is
+kept as a tag instead: `experiment-e1_main`,
+`experiment-e3_catastrophic-forgetting`, and so on. To see every run of one
+experiment, open the runs table and filter `Tags is
+"experiment-<name>"`; to see one configuration, open its group page.
 
 The W&B server used in this environment is `forge.coreweave.com`; the project
-and entity names are the ones requested. Filter by `group` (experiment name)
-or by the tags. The run URL is stored in each local JSON as
-`summary.wandb_url`; `scripts/make_report.py` turns the numbers in the report
-into links automatically. The README contains the curated links for the final
-runs.
+and entity names are the ones requested. The run URL is stored in each local
+JSON as `summary.wandb_url`; `scripts/make_report.py` derives the group URL
+from it and turns every number in the report into a link to that group. The
+README contains the same links for the main tables. Existing runs can be
+regrouped with `python scripts/regroup_wandb.py --apply`; the script is
+idempotent and keeps a resume/backup file in the system temp directory.
 
 ## 5. Offline and failed runs
 
@@ -120,6 +131,7 @@ This is intentional: a network failure should not destroy an experiment.
 
 * W&B run names are deterministic for a given config and seed.
 * Re-running the same run name creates a new W&B run; it does not overwrite the
-  old one. Use the `createdAt` field or the group view to distinguish them.
+  old one, and both land in the same configuration group. Use the `createdAt`
+  field to tell them apart.
 * The committed report is generated from local JSON, so it remains readable
   even if the W&B project is unavailable.

@@ -272,7 +272,8 @@ models. See `docs/experiment_protocol.md` for the exact protocol.
 Panel (a) follows the chart itself: raw ACE (%) on the paper's
 `tau = 0..25` and 10-35 axes. The sentence below Figure 7 that
 describes an ACE ratio is treated as an editorial error, so no ratio
-normalization is applied.
+normalization is applied. Panel (b) plots ACE against the
+selected-model ratio and zooms the x-axis to 0.8-1.0.
 
 ## E8: runtime scaling (paper Figure 8)
 
@@ -310,9 +311,17 @@ are the noisiest; the trend is clearest from 400 tasks upward.
 
 At the tested `tau` values the AKLOMS cover stays close to the full
 knowledge base (see E6/E7), so the AKLOMS table mainly measures the
-cost of a near-full cover. The paper's negative `tau`/runtime trend
-requires much larger `tau` in this implementation; `tau=0` is the
-AKLO-equivalent special case.
+cost of a near-full cover. Consequently the `tau > 0` rows nearly
+coincide and sit slightly above `tau=0`: the per-sample cover check is
+overhead until `tau` is large enough to discard many models. The
+paper's negative `tau`/runtime trend requires much larger `tau` in this
+implementation; `tau=0` is the AKLO-equivalent special case.
+
+The absolute seconds are much smaller than the paper's because
+`train_seconds` excludes data loading and logging, the implementation
+uses vectorized NumPy, and the cover check is an exact nearest-cover
+binary search rather than a pairwise distance matrix. Compare the
+scaling shape, not the absolute values.
 
 ## Theory checks
 
@@ -336,7 +345,7 @@ and per-run reports are in [theory/README.md](theory/README.md).
 
 ![e7_akloms_models.png](e7_akloms_models.png)
 
-*Figure 7 reproduction: (a) ACE (%) versus `tau` for each task count on syn1; (b) ACE versus the number and ratio of remaining models. Curves are means over 10 seeds.*
+*Figure 7 reproduction: (a) ACE (%) versus `tau` for each task count on syn1; (b) ACE versus the ratio of remaining models, zoomed to 0.8-1.0. Curves are means over 10 seeds.*
 
 ![e8_runtime.png](e8_runtime.png)
 

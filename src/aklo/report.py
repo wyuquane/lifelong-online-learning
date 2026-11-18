@@ -957,12 +957,12 @@ def _e7_series(
     results: list[dict[str, Any]],
     figure: str | None = None,
 ) -> dict[int, list[dict[str, float]]]:
-    """ACE, remaining-model count, and remaining-model ratio per task count.
+    """ACE and remaining-model ratio per task count and ``tau``.
 
     ``figure`` restricts the runs to the panel that used that ``tau`` grid:
     ``"fig7a"`` is the six-point ``tau = 0..25`` curve, while ``"fig7b"`` (or
-    no filter) also includes the small ``tau`` values used for the ratio
-    panels.
+    no filter) also includes the small ``tau`` values used for the
+    model-ratio panel.
     """
     if figure is not None:
         results = [
@@ -1016,7 +1016,6 @@ def _e7_series(
                     "tau": float(tau),
                     "ace": float(np.mean(values)),
                     "ratio": ratio,
-                    "n_models": ratio * task_count,
                 }
             )
         if points:
@@ -1025,7 +1024,7 @@ def _e7_series(
 
 
 def figure_e7(results: list[dict[str, Any]], output_dir: Path) -> Path | None:
-    """Paper Figure 7: AKLOMS ACE, remaining models, and remaining ratio."""
+    """Paper Figure 7: AKLOMS ACE versus tau and remaining-model ratio."""
     plt = _pyplot()
     _paper_style(plt)
     series_a = _e7_series(results, figure="fig7a")
@@ -1039,7 +1038,7 @@ def figure_e7(results: list[dict[str, Any]], output_dir: Path) -> Path | None:
         for index, task_count in enumerate(series_b)
     }
 
-    fig, axes = plt.subplots(1, 3, figsize=(16, 4.6))
+    fig, axes = plt.subplots(1, 2, figsize=(11, 4.6))
     # Panel (a): the six-point tau grid used by the paper's Figure 7(a).
     for task_count, points in series_a.items():
         color, marker = styles[task_count]
@@ -1053,23 +1052,11 @@ def figure_e7(results: list[dict[str, Any]], output_dir: Path) -> Path | None:
             linewidth=1.4,
             label=f"# of Tasks - {task_count}",
         )
-    # Panels (b)/(c): all tau values, including the small ones that produce
-    # the model-number and model-ratio sweeps.
+    # Panel (b): all tau values, ACE versus the remaining-model ratio.
     for task_count, points in series_b.items():
         color, marker = styles[task_count]
-        label = f"# of Tasks - {task_count}"
         ordered = sorted(points, key=lambda item: item["ratio"])
         axes[1].plot(
-            [point["n_models"] for point in ordered],
-            [point["ace"] for point in ordered],
-            color=color,
-            marker=marker,
-            markersize=4.5,
-            markerfacecolor="white",
-            linewidth=1.4,
-            label=label,
-        )
-        axes[2].plot(
             [point["ratio"] for point in ordered],
             [point["ace"] for point in ordered],
             color=color,
@@ -1077,7 +1064,7 @@ def figure_e7(results: list[dict[str, Any]], output_dir: Path) -> Path | None:
             markersize=4.5,
             markerfacecolor="white",
             linewidth=1.4,
-            label=label,
+            label=f"# of Tasks - {task_count}",
         )
 
     axes[0].set_xlim(-0.5, 25.5)
@@ -1093,20 +1080,18 @@ def figure_e7(results: list[dict[str, Any]], output_dir: Path) -> Path | None:
     )
     axes[0].legend(loc="upper left", fontsize=6.5, frameon=True)
 
-    axes[1].set_xlim(left=0.0)
-    axes[1].set_xlabel("Model Number")
+    # Focus the ratio panel on the high-ratio region where all task counts
+    # live; the full 0-1 range leaves most of the panel empty.
+    ratios = [point["ratio"] for points in series_b.values() for point in points]
+    left = 0.8 if min(ratios) >= 0.8 else min(ratios) - 0.02
+    axes[1].set_xlim(left=left, right=1.0)
+    axes[1].set_xticks(np.linspace(left, 1.0, 5))
+    axes[1].set_xlabel("Model Ratio")
     axes[1].set_ylabel("ACE (%)")
-    axes[1].set_title("Model Number - Performance", fontsize=10)
-    axes[1].legend(loc="upper right", fontsize=6.5, frameon=True)
+    axes[1].set_title("Model Ratio - Performance", fontsize=10)
+    axes[1].legend(loc="best", fontsize=6.5, frameon=True)
 
-    axes[2].set_xlim(0.0, 1.01)
-    axes[2].set_xticks(np.arange(0.0, 1.01, 0.2))
-    axes[2].set_xlabel("Model Ratio")
-    axes[2].set_ylabel("ACE (%)")
-    axes[2].set_title("Model Ratio - Performance", fontsize=10)
-    axes[2].legend(loc="upper right", fontsize=6.5, frameon=True)
-
-    for axis, label in zip(axes, ["(a)", "(b)", "(c)"]):
+    for axis, label in zip(axes, ["(a)", "(b)"]):
         axis.text(
             0.5,
             -0.28,
@@ -1362,7 +1347,8 @@ def build_report(
         "Panel (a) follows the chart itself: raw ACE (%) on the paper's",
         "`tau = 0..25` and 10-35 axes. The sentence below Figure 7 that",
         "describes an ACE ratio is treated as an editorial error, so no ratio",
-        "normalization is applied.",
+        "normalization is applied. Panel (b) plots ACE against the",
+        "selected-model ratio and zooms the x-axis to 0.8-1.0.",
         "",
         "## E8: runtime scaling (paper Figure 8)",
         "",
@@ -1378,9 +1364,17 @@ def build_report(
         "",
         "At the tested `tau` values the AKLOMS cover stays close to the full",
         "knowledge base (see E6/E7), so the AKLOMS table mainly measures the",
-        "cost of a near-full cover. The paper's negative `tau`/runtime trend",
-        "requires much larger `tau` in this implementation; `tau=0` is the",
-        "AKLO-equivalent special case.",
+        "cost of a near-full cover. Consequently the `tau > 0` rows nearly",
+        "coincide and sit slightly above `tau=0`: the per-sample cover check is",
+        "overhead until `tau` is large enough to discard many models. The",
+        "paper's negative `tau`/runtime trend requires much larger `tau` in this",
+        "implementation; `tau=0` is the AKLO-equivalent special case.",
+        "",
+        "The absolute seconds are much smaller than the paper's because",
+        "`train_seconds` excludes data loading and logging, the implementation",
+        "uses vectorized NumPy, and the cover check is an exact nearest-cover",
+        "binary search rather than a pairwise distance matrix. Compare the",
+        "scaling shape, not the absolute values.",
         "",
         "## Theory checks",
         "",
@@ -1420,8 +1414,8 @@ def build_report(
                     load_results(results_dir, "e7_akloms_models"), output_dir
                 ),
                 "Figure 7 reproduction: (a) ACE (%) versus `tau` for each task "
-                "count on syn1; (b) ACE versus the number and ratio of "
-                "remaining models. Curves are means over 10 seeds.",
+                "count on syn1; (b) ACE versus the ratio of remaining models, "
+                "zoomed to 0.8-1.0. Curves are means over 10 seeds.",
             ),
             (
                 "e8_runtime.png",

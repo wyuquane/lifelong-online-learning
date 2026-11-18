@@ -120,7 +120,11 @@ below.
   still perturb wall-clock timing. The scaling shape is more reliable than the
   absolute seconds. The AKLOMS cover check uses an exact nearest-cover binary
   search, so E8(b) reflects prediction cost rather than a naive pairwise
-  distance matrix; E8 was rerun after this change.
+  distance matrix; E8 was rerun after this change. At the tested `tau` values
+  the cover still contains 92–99.8% of the knowledge base, so the `tau > 0`
+  curves nearly coincide and sit slightly above `tau=0`, which skips the
+  per-sample cover check. The absolute times are much smaller than the paper's
+  because of the vectorized implementation and the narrower timing scope.
 * **TranOL and OTB** are faithful reimplementations, not the original
   algorithms, because the paper does not restate their full details.
 
@@ -222,9 +226,10 @@ is much larger than the paper's. Each cell is the mean over 10 seeds.
 
 **E7 (task count).** The same pattern holds for 50–400 tasks: the mean
 selected-model ratio is 97–99.8% for `tau <= 1`, 83–88% at `tau=25`, and ACE
-increases mildly with `tau` (e.g. 15.72% → 17.14% at 50 tasks). It never
-reaches the small ratios shown in the paper's Figure 7(b); see the `tau`
-deviation above.
+increases mildly with `tau` (e.g. 15.72% → 17.14% at 50 tasks). Panel (b)
+zooms the model-ratio axis to 0.8–1.0 so this high-ratio region is readable.
+The reproduction never reaches the small ratios shown in the paper's
+Figure 7(b); see the `tau` deviation above.
 
 ## Weights & Biases
 

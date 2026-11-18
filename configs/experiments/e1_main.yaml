@@ -1,6 +1,9 @@
 experiment: e1_main
 datasets: [syn1, syn2, landmine, spam, syn3, syn4, london]
 methods: [itol, tol, unif_sum, tranol, otb, aklo]
-seeds: [0]
+seeds: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
+# Keep the data and split fixed across repetitions; the seed only changes the
+# task and example order, as in the paper.
+data_seed: 0
 test_fraction: 0.0
 evaluate_forgetting: false

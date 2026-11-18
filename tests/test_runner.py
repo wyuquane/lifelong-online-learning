@@ -154,6 +154,36 @@ def test_itol_final_predictor_matches_per_task_snapshot(root) -> None:
     assert all(item.test is not None for item in metrics)
 
 
+@pytest.mark.parametrize("method", ["itol", "aklo", "tranol", "otb"])
+def test_per_task_snapshot_methods_match_immediate_evaluation(
+    method: str, root
+) -> None:
+    """A frozen end-of-task snapshot must reproduce the immediate test ACE.
+
+    ITOL, AKLO, TranOL and OTB evaluate each task with the predictor saved at
+    the end of that task.  The runner also evaluates the live model right
+    after ``end_task``, so both numbers must agree exactly; any update during
+    the final test pass would break this equality.
+    """
+    from aklo.data.synthetic import make_synthetic
+    from aklo.data.stream import prepare_stream
+
+    stream = make_synthetic("syn1", n_tasks=4, n_samples=30, seed=0, n_test=10)
+    stream = prepare_stream(stream, seed=0)
+    config = load_yaml(root / "configs" / "models" / f"{method}.yaml")
+    _, _, summary, _, _ = run_stream(
+        stream,
+        method,
+        config,
+        seed=0,
+        evaluate_final_test=True,
+        log_every=0,
+    )
+    assert np.isclose(
+        summary["final_test_ace_task_mean"], summary["test_ace_task_mean"]
+    )
+
+
 def test_make_smoke_stream() -> None:
     from aklo.data.synthetic import make_synthetic
 

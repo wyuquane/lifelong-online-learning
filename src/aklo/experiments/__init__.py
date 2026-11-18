@@ -11,6 +11,12 @@ def _seeds(experiment: dict[str, Any], base: dict[str, Any]) -> list[int]:
     return [int(seed) for seed in experiment.get("seeds", base.get("seeds", [0]))]
 
 
+def _data_seed(experiment: dict[str, Any]) -> int | None:
+    """Fixed data/split seed for repeated runs, when configured."""
+    value = experiment.get("data_seed")
+    return int(value) if value is not None else None
+
+
 def _label(value: Any) -> str:
     if isinstance(value, float):
         return f"{value:g}"
@@ -87,6 +93,7 @@ def _e1_main(experiment: dict[str, Any], config: dict[str, Any]) -> list[RunSpec
                         evaluate_forgetting=bool(
                             experiment.get("evaluate_forgetting", False)
                         ),
+                        data_seed=_data_seed(experiment),
                     )
                 )
     return specs
@@ -113,6 +120,7 @@ def _e2_small_m(experiment: dict[str, Any], config: dict[str, Any]) -> list[RunS
                         evaluate_forgetting=bool(
                             experiment.get("evaluate_forgetting", False)
                         ),
+                        data_seed=_data_seed(experiment),
                     )
                 )
     return specs
@@ -134,7 +142,6 @@ def _e3_catastrophic_forgetting(
     name = experiment["experiment"]
     test_fraction = float(experiment.get("test_fraction", 0.2))
     per_dataset = experiment.get("data_overrides", {})
-    data_seed = experiment.get("data_seed")
     specs: list[RunSpec] = []
     for dataset_name in experiment["datasets"]:
         dataset = config["datasets"][dataset_name]
@@ -159,9 +166,7 @@ def _e3_catastrophic_forgetting(
                         evaluate_final_test=bool(
                             experiment.get("evaluate_final_test", True)
                         ),
-                        data_seed=(
-                            int(data_seed) if data_seed is not None else None
-                        ),
+                        data_seed=_data_seed(experiment),
                     )
                 )
     return specs
@@ -189,6 +194,7 @@ def _sensitivity(experiment: dict[str, Any], config: dict[str, Any]) -> list[Run
                         evaluate_forgetting=bool(
                             experiment.get("evaluate_forgetting", False)
                         ),
+                        data_seed=_data_seed(experiment),
                         notes={"swept_parameter": parameter, "swept_value": value},
                     )
                 )
@@ -218,6 +224,7 @@ def _e6_akloms_tau(
                         evaluate_forgetting=bool(
                             experiment.get("evaluate_forgetting", False)
                         ),
+                        data_seed=_data_seed(experiment),
                     )
                 )
     return specs
@@ -261,6 +268,7 @@ def _e7_akloms_models(
                         log_selected_models=(
                             int(task_count) == 200 and tau in visualization_tau
                         ),
+                        data_seed=_data_seed(experiment),
                         notes={
                             "task_count": int(task_count),
                             "tau": float(tau),
@@ -294,6 +302,7 @@ def _e8_runtime(experiment: dict[str, Any], config: dict[str, Any]) -> list[RunS
                             "n_tasks": int(task_count),
                             "n_samples": int(n_samples),
                         },
+                        data_seed=_data_seed(experiment),
                         notes={
                             "figure": "fig8a",
                             "task_count": int(task_count),
@@ -321,6 +330,7 @@ def _e8_runtime(experiment: dict[str, Any], config: dict[str, Any]) -> list[RunS
                             "n_samples": n_samples,
                         },
                         model_overrides={"tau": float(tau)},
+                        data_seed=_data_seed(experiment),
                         notes={
                             "figure": "fig8b",
                             "task_count": int(task_count),

@@ -306,13 +306,16 @@ def _ace_scale(result: dict[str, Any]) -> float:
     return 100.0 if result.get("task_type") == "classification" else 1.0
 
 
-def _mean_std(values: list[float]) -> str:
+def _mean_std(values: list[float], decimals: int = 2) -> str:
     if not values:
         return "-"
     mean = float(np.mean(values))
     if len(values) == 1:
-        return f"{mean:.2f}"
-    return f"{mean:.2f} ± {float(np.std(values, ddof=0)):.2f}"
+        return f"{mean:.{decimals}f}"
+    return (
+        f"{mean:.{decimals}f} ± "
+        f"{float(np.std(values, ddof=0)):.{decimals}f}"
+    )
 
 
 def _mean_int(values: list[float]) -> str:
@@ -457,17 +460,17 @@ def table_e2(results: list[dict[str, Any]]) -> str:
 
 
 def table_e3(results: list[dict[str, Any]]) -> str:
-    """E3 Table 2 layout: final-state ACE on all task test sets."""
+    """E3 Table 2 layout: method-specific ACE on all task test sets."""
     return _method_by_dataset_table(results, "final_test_ace_task_mean")
 
 
 def table_e3_pooled(results: list[dict[str, Any]]) -> str:
-    """Secondary E3 metric: pooled final-state test ACE."""
+    """Secondary E3 metric: pooled test ACE."""
     return _method_by_dataset_table(results, "final_test_ace_pooled")
 
 
 def table_e3_paper(results: list[dict[str, Any]]) -> str:
-    """Paper Table 2 next to our final-state test ACE."""
+    """Paper Table 2 next to our test ACE."""
     datasets = [name for name in DATASET_ORDER if name in PAPER_TABLE2]
     methods = PAPER_METHODS
     headers = ["Dataset", "Method", "Paper Table 2", "Our test ACE"]
@@ -677,7 +680,7 @@ def table_e8(results: list[dict[str, Any]]) -> str:
                     and int(result["config"]["notes"]["n_samples"]) == n_samples
                 ]
                 values = _values(group, "train_seconds")
-                cells.append(f"{np.mean(values):.3f}" if values else "-")
+                cells.append(_mean_std(values, decimals=3) if values else "-")
             rows.append(cells)
         lines.append(_markdown_table(headers, rows))
     else:
@@ -709,7 +712,7 @@ def table_e8(results: list[dict[str, Any]]) -> str:
                     and float(result["config"]["notes"]["tau"]) == tau
                 ]
                 values = _values(group, "train_seconds")
-                cells.append(f"{np.mean(values):.3f}" if values else "-")
+                cells.append(_mean_std(values, decimals=3) if values else "-")
             rows.append(cells)
         lines.append(_markdown_table(headers, rows))
     else:
@@ -950,8 +953,23 @@ def figure_e5(results: list[dict[str, Any]], output_dir: Path) -> Path | None:
     )
 
 
-def _e7_series(results: list[dict[str, Any]]) -> dict[int, list[dict[str, float]]]:
-    """ACE, remaining-model count, and remaining-model ratio per task count."""
+def _e7_series(
+    results: list[dict[str, Any]],
+    figure: str | None = None,
+) -> dict[int, list[dict[str, float]]]:
+    """ACE, remaining-model count, and remaining-model ratio per task count.
+
+    ``figure`` restricts the runs to the panel that used that ``tau`` grid:
+    ``"fig7a"`` is the six-point ``tau = 0..25`` curve, while ``"fig7b"`` (or
+    no filter) also includes the small ``tau`` values used for the ratio
+    panels.
+    """
+    if figure is not None:
+        results = [
+            result
+            for result in results
+            if result.get("config", {}).get("notes", {}).get("figure") == figure
+        ]
     task_counts = sorted(
         {
             int(result["config"].get("data_overrides", {}).get("n_tasks", 0))
@@ -1010,17 +1028,21 @@ def figure_e7(results: list[dict[str, Any]], output_dir: Path) -> Path | None:
     """Paper Figure 7: AKLOMS ACE, remaining models, and remaining ratio."""
     plt = _pyplot()
     _paper_style(plt)
-    series = _e7_series(results)
-    if not series:
+    series_a = _e7_series(results, figure="fig7a")
+    series_b = _e7_series(results)
+    if not series_a or not series_b:
         return None
     colors = plt.get_cmap("tab10").colors
     markers = ["o", "s", "^", "D", "x", "v", "P", "X"]
+    styles = {
+        task_count: (colors[index % len(colors)], markers[index % len(markers)])
+        for index, task_count in enumerate(series_b)
+    }
 
     fig, axes = plt.subplots(1, 3, figsize=(16, 4.6))
-    for index, (task_count, points) in enumerate(series.items()):
-        color = colors[index % len(colors)]
-        marker = markers[index % len(markers)]
-        label = f"# of Tasks - {task_count}"
+    # Panel (a): the six-point tau grid used by the paper's Figure 7(a).
+    for task_count, points in series_a.items():
+        color, marker = styles[task_count]
         axes[0].plot(
             [point["tau"] for point in points],
             [point["ace"] for point in points],
@@ -1029,8 +1051,13 @@ def figure_e7(results: list[dict[str, Any]], output_dir: Path) -> Path | None:
             markersize=4.5,
             markerfacecolor="white",
             linewidth=1.4,
-            label=label,
+            label=f"# of Tasks - {task_count}",
         )
+    # Panels (b)/(c): all tau values, including the small ones that produce
+    # the model-number and model-ratio sweeps.
+    for task_count, points in series_b.items():
+        color, marker = styles[task_count]
+        label = f"# of Tasks - {task_count}"
         ordered = sorted(points, key=lambda item: item["ratio"])
         axes[1].plot(
             [point["n_models"] for point in ordered],
@@ -1057,6 +1084,13 @@ def figure_e7(results: list[dict[str, Any]], output_dir: Path) -> Path | None:
     axes[0].set_xticks([0, 5, 10, 15, 20, 25])
     axes[0].set_xlabel(r"$\tau$")
     axes[0].set_ylabel("ACE (%)")
+    # Match the paper's Figure 7(a): raw ACE (%) on a 10-35 axis.  Keep
+    # headroom in case a reproduction run falls outside that range.
+    aces = [point["ace"] for points in series_a.values() for point in points]
+    axes[0].set_ylim(
+        bottom=10.0 if min(aces) >= 10.0 else min(aces) - 1.0,
+        top=35.0 if max(aces) <= 35.0 else max(aces) + 1.0,
+    )
     axes[0].legend(loc="upper left", fontsize=6.5, frameon=True)
 
     axes[1].set_xlim(left=0.0)
@@ -1072,7 +1106,7 @@ def figure_e7(results: list[dict[str, Any]], output_dir: Path) -> Path | None:
     axes[2].set_title("Model Ratio - Performance", fontsize=10)
     axes[2].legend(loc="upper right", fontsize=6.5, frameon=True)
 
-    for axis, label in zip(axes, ["(a)", "(b)", "(b)"]):
+    for axis, label in zip(axes, ["(a)", "(b)", "(c)"]):
         axis.text(
             0.5,
             -0.28,
@@ -1224,9 +1258,12 @@ def build_report(
     sections: list[str] = [
         "# AKLO reproduction report",
         "",
-        "Generated from the JSON files in `results/`. Classification ACE is a",
-        "percentage; regression ACE is on the target scale. W&B links are",
-        "included when the run was tracked online.",
+        "Generated from the JSON files in `results/`. Every experiment is",
+        "repeated with seeds 0-9; the data and train/test split are fixed by",
+        "`data_seed=0`, and only the task and example order changes. Tables",
+        "report the mean ± standard deviation over the ten seeds; figures show",
+        "the mean. Classification ACE is a percentage; regression ACE is on the",
+        "target scale. W&B links are included when the run was tracked online.",
         "",
         "## E1: main comparison (paper Table 1)",
         "",
@@ -1242,19 +1279,20 @@ def build_report(
         "",
         "## E3: catastrophic forgetting (paper Table 2)",
         "",
-        "Training follows E1 exactly. After the last task, the method's final",
-        "predictor is evaluated on the test set of every task `1..T`, matching",
-        "the paper's description: the whole test set constituted of samples from",
-        "previous tasks is fed to the model after training. The synthetic",
-        "datasets use 50 tasks (25 D1 + 25 D2) with 100 training and 100 separate",
-        "test samples per task. Landmine uses 150 training rows per task and all",
-        "remaining rows as test; Spam uses 200 training rows per user and all",
-        "remaining rows as test. London keeps an 80/20 split per school. Each",
-        "experiment is repeated with 10 seeds; the data and split are fixed and",
-        "only the task/example order changes. The primary metric is the",
-        "task-averaged test ACE, with the pooled test ACE as a secondary metric.",
-        "Classification ACE is multiplied by 100; regression ACE is on the target",
-        "scale. OTB is not defined for regression, so those cells are empty.",
+        "Training follows E1 exactly. E3 evaluates the test set of every task",
+        "`1..T` with a method-specific predictor. ITOL, AKLO, TranOL and OTB use",
+        "the frozen snapshot saved at the end of that task; TOL uses its single",
+        "final online model; Unif_Sum averages all task snapshots. No parameter",
+        "is updated during the test pass. The synthetic datasets use 50 tasks",
+        "(25 D1 + 25 D2) with 100 training and 100 separate test samples per",
+        "task. Landmine uses 150 training rows per task and all remaining rows",
+        "as test; Spam uses 200 training rows per user and all remaining rows as",
+        "test. London keeps an 80/20 split per school. Each experiment is",
+        "repeated with 10 seeds; the data and split are fixed and only the",
+        "task/example order changes. The primary metric is the task-averaged",
+        "test ACE, with the pooled test ACE as a secondary metric. Classification",
+        "ACE is multiplied by 100; regression ACE is on the target scale. OTB is",
+        "not defined for regression, so those cells are empty.",
         "",
         table_e3(load_results(results_dir, "e3_catastrophic-forgetting")),
         "",
@@ -1271,12 +1309,15 @@ def build_report(
         ),
         "",
         "The paper reports mean ± standard deviation over 10 repetitions. Our",
-        "table uses the same aggregation over seeds 0-9. TOL and TranOL have",
-        "identical rows because both perform the same online updates on the",
-        "final target model; TranOL's source/target blend affects only its",
-        "prediction. On syn2 the D2 tasks flip the labels of the D1 marginal,",
-        "so every non-ITOL method is near chance. See",
-        "`docs/experiment_protocol.md` for the exact protocol.",
+        "table uses the same aggregation over seeds 0-9. E3 is a hybrid",
+        "protocol: the per-task methods (ITOL, AKLO, TranOL, OTB) are evaluated",
+        "with the snapshot saved at the end of each task, while TOL and",
+        "Unif_Sum use stricter global predictors. AKLO's snapshot contains the",
+        "knowledge base before the task, the beta weights at the end of the",
+        "task, the current predictor, and alpha at the end of the task. On syn2",
+        "the D2 tasks flip the labels of the D1 marginal, so TOL and Unif_Sum",
+        "are near chance while the per-task methods retain task-specific",
+        "models. See `docs/experiment_protocol.md` for the exact protocol.",
         "",
         "## E4: classification sensitivity (paper Figure 4)",
         "",
@@ -1318,16 +1359,22 @@ def build_report(
         "",
         table_e7_ratio(load_results(results_dir, "e7_akloms_models")),
         "",
+        "Panel (a) follows the chart itself: raw ACE (%) on the paper's",
+        "`tau = 0..25` and 10-35 axes. The sentence below Figure 7 that",
+        "describes an ACE ratio is treated as an editorial error, so no ratio",
+        "normalization is applied.",
+        "",
         "## E8: runtime scaling (paper Figure 8)",
         "",
         table_e8(load_results(results_dir, "e8_runtime")),
         "",
         "`train_seconds` covers only the per-sample predict/update loop; data",
-        "loading and W&B calls are excluded. The runs still share one Windows",
-        "machine, and background W&B uploads can perturb wall-clock timing, so",
-        "the absolute seconds are indicative and the scaling shape is the",
-        "reliable signal. The small-task-count cells are the noisiest; the",
-        "trend is clearest from 400 tasks upward.",
+        "loading and W&B calls are excluded. Each cell reports the mean ±",
+        "standard deviation over the ten seeds. E8 was run without other",
+        "experiments to reduce CPU contention; background W&B uploads can still",
+        "perturb wall-clock timing, so the absolute seconds are indicative and",
+        "the scaling shape is the reliable signal. The small-task-count cells",
+        "are the noisiest; the trend is clearest from 400 tasks upward.",
         "",
         "At the tested `tau` values the AKLOMS cover stays close to the full",
         "knowledge base (see E6/E7), so the AKLOMS table mainly measures the",
@@ -1345,17 +1392,51 @@ def build_report(
 
     if make_figures:
         figures = [
-            ("e2_small_m.png", figure_e2(load_results(results_dir, "e2_small_m"), output_dir)),
-            ("e4_sensitivity_cls.png", figure_e4(load_results(results_dir, "e4_sensitivity_cls"), output_dir)),
-            ("e5_sensitivity_reg.png", figure_e5(load_results(results_dir, "e5_sensitivity_reg"), output_dir)),
-            ("e7_akloms_models.png", figure_e7(load_results(results_dir, "e7_akloms_models"), output_dir)),
-            ("e8_runtime.png", figure_e8(load_results(results_dir, "e8_runtime"), output_dir)),
+            (
+                "e2_small_m.png",
+                figure_e2(load_results(results_dir, "e2_small_m"), output_dir),
+                "Figure 3 reproduction: mean cumulative ACE over 10 seeds for "
+                "each number of observations per task `m_t` on syn1.",
+            ),
+            (
+                "e4_sensitivity_cls.png",
+                figure_e4(
+                    load_results(results_dir, "e4_sensitivity_cls"), output_dir
+                ),
+                "Figure 4 reproduction: mean cumulative ACE over 10 seeds for "
+                "the classification sensitivity sweeps on syn1.",
+            ),
+            (
+                "e5_sensitivity_reg.png",
+                figure_e5(
+                    load_results(results_dir, "e5_sensitivity_reg"), output_dir
+                ),
+                "Figure 5 reproduction: mean cumulative ACE over 10 seeds for "
+                "the regression sensitivity sweeps on syn3.",
+            ),
+            (
+                "e7_akloms_models.png",
+                figure_e7(
+                    load_results(results_dir, "e7_akloms_models"), output_dir
+                ),
+                "Figure 7 reproduction: (a) ACE (%) versus `tau` for each task "
+                "count on syn1; (b) ACE versus the number and ratio of "
+                "remaining models. Curves are means over 10 seeds.",
+            ),
+            (
+                "e8_runtime.png",
+                figure_e8(load_results(results_dir, "e8_runtime"), output_dir),
+                "Figure 8 reproduction: mean runtime over 10 seeds. "
+                "(a) AKLO; (b) AKLOMS.",
+            ),
         ]
         sections.append("## Figures")
         sections.append("")
-        for name, path in figures:
+        for name, path, caption in figures:
             if path is not None:
                 sections.append(f"![{name}]({name})")
+                sections.append("")
+                sections.append(f"*{caption}*")
                 sections.append("")
 
     report_path = output_dir / "report.md"

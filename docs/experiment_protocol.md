@@ -53,8 +53,9 @@ is at least 300 observations per task so that E2 can use nested prefixes of the
 same data for different `m_t`.
 
 > The paper text says 50 synthetic tasks (25 per distribution), but Figures 3
-> and 7 show axes up to 200 and 400 tasks. This reproduction uses 200 tasks and
-> one seed by default; the 200-task choice follows the figures. See
+> and 7 show axes up to 200 and 400 tasks. This reproduction uses 200 tasks;
+> the 200-task choice follows the figures. Every experiment is repeated over
+> seeds `0..9` with `data_seed=0`, so only the task/example order changes. See
 > `docs/paper_decisions.md`.
 
 ### Landmine
@@ -63,7 +64,8 @@ Loader: `src/aklo/data/landmine.py`. File:
 `data/landmine-detection.csv`. There are 29 geographical regions (tasks) and
 nine features. For each run, 150 examples are sampled without replacement from
 each region. Labels are `+1` (landmine) and `-1` (clutter). The paper samples
-150 examples per task; resampling every repetition is our choice.
+150 examples per task; the sample is fixed across repetitions by
+`data_seed=0`.
 
 ### Spam
 
@@ -163,22 +165,28 @@ The E4/E5 sweeps use the exact paper figure legends:
 | --- | --- | --- | --- | --- |
 | E1 | Table 1 | `configs/experiments/e1_main.yaml` | `python scripts/run.py --experiment e1_main` | Main comparison on all 7 datasets |
 | E2 | Figure 3 | `configs/experiments/e2_small_m.yaml` | `python scripts/run.py --experiment e2_small_m` | ACE versus `m_t` on `syn1` |
-| E3 | Table 2 | `configs/experiments/e3_catastrophic-forgetting.yaml` | `python scripts/run.py --experiment e3_catastrophic-forgetting` | Final-state test ACE on the union of all task test sets (10 seeds) |
+| E3 | Table 2 | `configs/experiments/e3_catastrophic-forgetting.yaml` | `python scripts/run.py --experiment e3_catastrophic-forgetting` | Method-specific test ACE on each task's held-out set |
 | E4 | Figure 4 | `configs/experiments/e4_sensitivity_cls.yaml` | `python scripts/run.py --experiment e4_sensitivity_cls` | Classification sensitivity to `eta`, `lambda`, `delta_alpha` |
 | E5 | Figure 5 | `configs/experiments/e5_sensitivity_reg.yaml` | `python scripts/run.py --experiment e5_sensitivity_reg` | Regression sensitivity to `eta`, `lambda`, `delta_alpha` |
 | E6 | Table 3 | `configs/experiments/e6_akloms_tau.yaml` | `python scripts/run.py --experiment e6_akloms_tau` | AKLOMS ACE versus `tau` |
-| E7 | Figure 7 | `configs/experiments/e7_akloms_models.yaml` | `python scripts/run.py --experiment e7_akloms_models` | AKLOMS selected-model ratio versus task count and `tau` |
+| E7 | Figure 7 | `configs/experiments/e7_akloms_models.yaml` | `python scripts/run.py --experiment e7_akloms_models` | AKLOMS ACE and selected-model ratio versus task count and `tau` |
 | E8 | Figure 8 | `configs/experiments/e8_runtime.yaml` | `python scripts/run.py --experiment e8_runtime` | Runtime versus task count, `m_t`, and `tau` |
 
 E1/E2/E4-E8 use `test_fraction: 0.0`: every task is a pure online stream, as
 in the paper's ACE definition. E3 is the exception: each task has a separate
-held-out test set, and the final model is evaluated on all of them.
+held-out test set, evaluated with a method-specific predictor.
+
+E7 panel (a) follows the plotted chart, not the sentence below Figure 7:
+it shows raw ACE (%) for `tau = 0, 5, 10, 15, 20, 25` on the paper's 0–25 and
+10–35 axes. The small `tau` values used by panels (b)/(c) are not mixed into
+panel (a). See the E7 row in
+[`docs/paper_decisions.md`](paper_decisions.md).
 
 ### E3 protocol
 
-E3 implements the paper's final-state reading of Table 2: train once on the
-whole stream, then feed the test sets of every task `1..T` to the final model.
-The datasets and splits are:
+E3 follows the paper's Table 2 setup: train once on the whole stream, then
+evaluate each task's held-out test set. The predictor used for task q is
+method-specific. The datasets and splits are:
 
 | Dataset | Tasks | Train per task | Test per task |
 | --- | ---: | ---: | ---: |
@@ -193,50 +201,63 @@ the task as test. London keeps a per-school 80/20 split. Training then follows
 E1 exactly: same online loop, same hyperparameters, and the same task/example
 shuffles for every method.
 
-After the last task, each method uses its method-specific final predictor:
+The predictor for task q is:
 
-* **ITOL**: the task-specific snapshot for the evaluated task.
-* **TOL**: the single final online model.
-* **Unif_Sum**: the uniform average of all task snapshots.
-* **TranOL**: the final target model (without the source blend).
-* **OTB**: the final weighted ensemble.
-* **AKLO**: the full `alpha * meta + (1 - alpha) * current` final state.
+* **ITOL**: the task-specific snapshot f_q.
+* **TOL**: the single final online model (the same model for every task).
+* **Unif_Sum**: the uniform average of all task snapshots f_1..f_T.
+* **TranOL**: the frozen source/target pair at the end of task q: source
+  f_{q-1} and target f_q, combined 0.5/0.5. The first task uses f_1 only.
+* **OTB**: the frozen weighted ensemble of the 10 weak learners at the end of
+  task q, using the boosting weights at that instant. The first task uses the
+  ensemble after task 1.
+* **AKLO**: the frozen snapshot at the end of task q. It contains the
+  knowledge base f_1..f_{q-1} used during the task, the meta weights beta at
+  the end of the task, the current predictor f_q, and alpha at the end of the
+  task. The first task uses f_1 only.
 * **AKLOMS**: the final AKLO predictor over the selected knowledge base
   (AKLOMS is not part of Table 2).
 
-The primary metric is `final_test_ace_task_mean`, the mean over tasks of the
-final-state test ACE. `final_test_ace_pooled` is secondary and prequential ACE
-is reported for context. Classification ACE is multiplied by 100; regression
-ACE is on the target scale. OTB is undefined for regression.
+The snapshots are immutable: prediction never calls `update`, so no parameter
+changes during the test pass. The primary metric is
+`final_test_ace_task_mean`, the mean over tasks of the test ACE.
+`final_test_ace_pooled` is secondary and prequential ACE is reported for
+context. Classification ACE is multiplied by 100; regression ACE is on the
+target scale. OTB is undefined for regression.
 
-Two properties follow from this design. TOL and TranOL have identical
-final-state rows: both apply the same online updates to the final target model,
-and TranOL's source/target blend changes only the prediction, not the update.
+E3 is therefore a method-specific/hybrid protocol: ITOL, AKLO, TranOL and OTB
+use per-task snapshots, TOL uses its final online model, and Unif_Sum averages
+all snapshots. This matches the natural prediction rule of each method and is
+closer to the paper's likely per-task reading of Table 2. TOL and Unif_Sum are
+the stricter predictors; their rows are not directly comparable to the
+per-task rows in terms of evaluation instant.
+
 On syn2 (and the regression variant syn4) the D2 tasks reuse the D1 marginal
-but flip the labels, so a single final predictor cannot fit both distributions;
-syn2's classification methods therefore sit near chance.
+but flip the labels, so a single predictor cannot fit both distributions;
+syn2's classification methods therefore sit near chance unless they use
+task-specific snapshots.
 
 The paper's Table 2 values are close to its Table 1 values, which suggests the
-original implementation may have evaluated each task shortly after training
-rather than only at the end. The final-state protocol requested for this
-reproduction is a stricter catastrophic-forgetting test, so the comparison is
-qualitative. The old per-task E3 protocol and its `e3_task_test` W&B runs were
-removed.
+original implementation evaluated each task shortly after training. With
+per-task snapshots for four methods, the reproduction is closer to that
+reading; the remaining differences are discussed in the README. The old
+per-task E3 protocol and its `e3_task_test` W&B runs were removed.
 
 ## 7. Repetitions and seeds
 
 The paper repeats every experiment 10 times with fresh task and example
-shuffles. E3 uses all ten seeds (`0..9`), with the underlying data and split
-fixed by `data_seed: 0` and only the task/example order changing per seed. The
-other experiments still use `seed: 0` for the committed results because of the
-compute budget; their configs accept `seeds: [0, 1, ...]` and will reproduce
-the paper's repetition protocol when extended. Runtime in E8 is measured once
-on the machine that ran the experiment.
+shuffles. All experiments use seeds `0..9`, with the underlying data and split
+fixed by `data_seed: 0` and only the task/example order changing per seed. This
+matches the paper's description of shuffling the task order and the example
+order in each repetition. Tables report the mean ± standard deviation over the
+ten seeds; figures show the mean. Runtime in E8 is measured for every seed on
+the machine that ran the experiment, and its table reports mean ± standard
+deviation.
 
 ## 8. Runtime measurement
 
 `train_seconds` wraps only the per-sample `predict` + `update` loop. Data
-loading, model construction, E3 final-state evaluation, JSON serialization,
+loading, model construction, E3 test evaluation, JSON serialization,
 and W&B logging are excluded. `total_seconds` includes all of the run after data
 loading. E8 reports `train_seconds`.
 

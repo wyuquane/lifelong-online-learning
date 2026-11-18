@@ -68,7 +68,7 @@ Per-task metrics (step = task index):
   `w_norm`, `beta_entropy`, `beta_max`, `n_updates`, ...)
 * `test/*` for E3 per-task held-out diagnostics (`ace`, `total_error`,
   `n_samples`)
-* `final_test/ace` for each task's final-state E3 evaluation, with
+* `final_test/ace` for each task's E3 test evaluation, with
   `final_test/task` as the step metric
 
 Sample-level metrics are logged after the run, using the global sample index:
@@ -79,7 +79,7 @@ Sample-level metrics are logged after the run, using the global sample index:
 Summary fields include `final_cumulative_ace`, `pooled_ace`,
 `final_task_ace`, timing, final model state, E3 per-task diagnostics
 (`test_ace_task_mean`, `test_ace_pooled`, `test_n_tasks`,
-`test_n_samples`), the final-state E3 metrics
+`test_n_samples`), the E3 test metrics
 (`final_test_ace_task_mean`, `final_test_ace_pooled`,
 `final_test_n_tasks`, `final_test_n_samples`), and `wandb_url`.
 Per-task values are logged as history metrics; no tables or model checkpoints

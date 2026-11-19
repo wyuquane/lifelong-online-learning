@@ -1,0 +1,34 @@
+{
+  "dataset": "wyuquane/aklo-real-world-dataset",
+  "version": 1,
+  "url": "https://www.kaggle.com/datasets/wyuquane/aklo-real-world-dataset",
+  "license": "MIT",
+  "download_tool": "kagglehub",
+  "files": {
+    "landmine-detection.csv": {
+      "size": 2760835,
+      "sha256": "7396407a1a926a0855b0ab95d417d2f1e33fb9ca7c15b70280fb1e638eb0972d",
+      "source": "landmine-detection.csv"
+    },
+    "spam-detection.npz": {
+      "size": 1910501,
+      "sha256": "8b54bcf1ef29534c07f86e86242d1375a4a12f0956063f18207cf44498356e37",
+      "source": "spam-detection.npz"
+    },
+    "london-school/ILEA567.DAT": {
+      "size": 276517,
+      "sha256": "57bbbfd28db39a1383661fdce8719fa8f5b29ec6d0881292ade5f2d8c3774a68",
+      "source": "london-school/london-school/ILEA567.DAT"
+    },
+    "london-school/ILEA567.ASC": {
+      "size": 2868,
+      "sha256": "8d9d6cf24b1dd17e2c92f1521f97c2e277eee9be959f060532c6d9176f68b8e0",
+      "source": "london-school/london-school/ILEA567.ASC"
+    },
+    "london-school/ILEA567.WS": {
+      "size": 650025,
+      "sha256": "8397e63b0f2fc909ce2dfd98d2399d7d67d4d2f86c2169533f26b9e71743c8cc",
+      "source": "london-school/london-school/ILEA567.WS"
+    }
+  }
+}

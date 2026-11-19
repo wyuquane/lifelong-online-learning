@@ -14,6 +14,7 @@ from .runner import RunSpec, execute_run
 
 
 def _resolve_experiment(value: str) -> Path:
+    """Resolve an experiment name or YAML path to an existing config file."""
     path = Path(value)
     if path.exists():
         return path
@@ -33,6 +34,7 @@ def _filter_specs(
     seed: int | None,
     limit: int | None,
 ) -> list[RunSpec]:
+    """Filter run specifications by dataset, method, seed, and limit."""
     selected = specs
     if dataset:
         selected = [spec for spec in selected if spec.dataset == dataset]
@@ -46,6 +48,7 @@ def _filter_specs(
 
 
 def _print_specs(specs: list[RunSpec]) -> None:
+    """Print one line per selected run specification."""
     for index, spec in enumerate(specs, start=1):
         overrides = ""
         if spec.data_overrides:
@@ -67,6 +70,7 @@ def _configure_stdout() -> None:
 
 
 def main(argv: list[str] | None = None) -> int:
+    """Run the selected experiment specifications and return an exit code."""
     _configure_stdout()
     parser = argparse.ArgumentParser(
         description="Run AKLO reproduction experiments with W&B tracking."

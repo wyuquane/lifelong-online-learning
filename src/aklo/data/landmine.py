@@ -17,6 +17,7 @@ def _split(
     test_fraction: float,
     seed: int,
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray | None, np.ndarray | None]:
+    """Split one task into train/test arrays, stratifying when possible."""
     if test_fraction <= 0 or len(y) < 2:
         return X, y, None, None
     n_test = max(1, int(round(len(y) * test_fraction)))

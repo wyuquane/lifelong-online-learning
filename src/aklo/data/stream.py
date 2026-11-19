@@ -14,6 +14,7 @@ def _permute_examples(
     y: np.ndarray,
     rng: np.random.Generator,
 ) -> tuple[np.ndarray | sparse.csr_matrix, np.ndarray]:
+    """Return ``X`` and ``y`` reordered by one random permutation."""
     order = rng.permutation(len(y))
     if sparse.issparse(X):
         return X.tocsr()[order], y[order]

@@ -52,6 +52,7 @@ class MetaHypothesis:
         weights_matrix: np.ndarray | None = None,
         loss: str = "squared",
     ) -> None:
+        """Initialize uniform weights over the supplied knowledge-base models."""
         self.snapshots = list(snapshots)
         self.epsilon = float(epsilon)
         self.loss = loss
@@ -64,6 +65,7 @@ class MetaHypothesis:
         self._weights_matrix = weights_matrix
 
     def _matrix(self) -> np.ndarray:
+        """Return (and cache) the stacked weights of all members."""
         if self._weights_matrix is None:
             if self.snapshots:
                 self._weights_matrix = np.vstack(
@@ -74,14 +76,17 @@ class MetaHypothesis:
         return self._weights_matrix
 
     def _predictions(self, x: Any) -> np.ndarray:
+        """Return the prediction of every knowledge-base member."""
         return _predict_rows(self._matrix(), x)
 
     def predict(self, x: Any) -> float:
+        """Return the beta-weighted ensemble prediction."""
         if not self.snapshots:
             return 0.0
         return float(np.dot(self.beta, self._predictions(x)))
 
     def _member_loss(self, y: float, predictions: np.ndarray) -> np.ndarray:
+        """Return the per-member loss vector for one observation."""
         if self.loss == "squared":
             return (y - predictions) ** 2
         if self.loss == "hinge":
@@ -95,6 +100,7 @@ class MetaHypothesis:
         raise ValueError(f"Unknown meta loss: {self.loss}")
 
     def update(self, x: Any, y: float) -> None:
+        """Accumulate member losses and refresh the exponential weights."""
         if not self.snapshots:
             return
         predictions = self._predictions(x)
@@ -116,6 +122,7 @@ class MetaHypothesis:
         weights_matrix: np.ndarray | None = None,
         loss: str | None = None,
     ) -> None:
+        """Reset the hypothesis to a new knowledge base and epsilon."""
         self.snapshots = list(snapshots)
         self.epsilon = float(epsilon)
         if loss is not None:
@@ -130,8 +137,10 @@ class MetaHypothesis:
 
     @property
     def beta_entropy(self) -> float:
+        """Return the Shannon entropy of the beta weights."""
         return entropy(self.beta)
 
     @property
     def beta_max(self) -> float:
+        """Return the largest beta weight (0 for an empty hypothesis)."""
         return float(np.max(self.beta)) if self.beta.size else 0.0

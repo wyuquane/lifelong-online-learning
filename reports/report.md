@@ -333,6 +333,10 @@ and per-run reports are in [theory/README.md](theory/README.md).
 
 ## Figures
 
+![figure2_ace_evolution.png](figure2_ace_evolution.png)
+
+*Figure 2 reproduction: mean cumulative ACE over 10 seeds for the four classification datasets (a-d) and the three regression datasets (e-g). Panels reuse the E1 runs.*
+
 ![e2_small_m.png](e2_small_m.png)
 
 *Figure 3 reproduction: mean cumulative ACE over 10 seeds for each number of observations per task `m_t` on syn1.*

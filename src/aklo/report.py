@@ -294,6 +294,7 @@ def _values(
     key: str,
     scale: float | Any = 1.0,
 ) -> list[float]:
+    """Extract one summary metric from results, optionally rescaling it."""
     values = []
     for result in results:
         value = result.get("summary", {}).get(key)
@@ -309,6 +310,7 @@ def _ace_scale(result: dict[str, Any]) -> float:
 
 
 def _mean_std(values: list[float], decimals: int = 2) -> str:
+    """Format a list as ``mean ± std`` (population standard deviation)."""
     if not values:
         return "-"
     mean = float(np.mean(values))
@@ -364,6 +366,7 @@ def _link(
 
 
 def _markdown_table(headers: list[str], rows: list[list[str]]) -> str:
+    """Render a GitHub-flavored Markdown table."""
     lines = [
         "| " + " | ".join(headers) + " |",
         "| " + " | ".join("---" for _ in headers) + " |",
@@ -377,6 +380,7 @@ def _group(
     results: Iterable[dict[str, Any]],
     key_fn,
 ) -> dict[Any, list[dict[str, Any]]]:
+    """Group results by a caller-supplied key function."""
     grouped: dict[Any, list[dict[str, Any]]] = defaultdict(list)
     for result in results:
         grouped[key_fn(result)].append(result)
@@ -388,6 +392,7 @@ def _method_results(
     dataset: str,
     method: str,
 ) -> list[dict[str, Any]]:
+    """Return all results for one dataset/method pair."""
     return [
         result
         for result in results
@@ -533,6 +538,7 @@ def _sensitivity_table(
     parameter: str,
     ace_label: str = "ACE (%)",
 ) -> str:
+    """Build a parameter-value table for one sensitivity sweep."""
     groups = _group(
         results,
         lambda result: result["config"].get("model_overrides", {}).get(parameter),
@@ -561,10 +567,12 @@ def _sensitivity_table(
 
 
 def table_e4(results: list[dict[str, Any]]) -> str:
+    """Classification sensitivity table for ``eta`` (paper Figure 4)."""
     return _sensitivity_table(results, "eta")
 
 
 def table_e5(results: list[dict[str, Any]]) -> str:
+    """Regression sensitivity table for ``eta`` (paper Figure 5)."""
     return _sensitivity_table(results, "eta", ace_label="ACE")
 
 
@@ -641,6 +649,7 @@ def table_e7(results: list[dict[str, Any]]) -> str:
 
 
 def table_e7_ratio(results: list[dict[str, Any]]) -> str:
+    """Selected-model ratio (%) by task count and ``tau``."""
     task_counts = sorted(
         {
             int(result["config"].get("data_overrides", {}).get("n_tasks", 0))
@@ -770,6 +779,7 @@ def table_e8(results: list[dict[str, Any]]) -> str:
 # Figures
 # ---------------------------------------------------------------------------
 def _pyplot():
+    """Import Matplotlib with a non-interactive backend."""
     import matplotlib
 
     matplotlib.use("Agg")
@@ -797,6 +807,7 @@ def _average_task_curve(results: list[dict[str, Any]]) -> np.ndarray | None:
 
 
 def _paper_style(plt) -> None:
+    """Apply the shared paper-like font, spine, and resolution settings."""
     plt.rcParams.update(
         {
             "font.size": 9,
@@ -810,6 +821,86 @@ def _paper_style(plt) -> None:
             "figure.dpi": 160,
         }
     )
+
+
+def figure_paper2(results: list[dict[str, Any]], output_dir: Path) -> Path | None:
+    """Paper Figure 2: ACE evolution on the four classification and three regression datasets.
+
+    The seven panels reuse the E1 runs: each curve is the mean cumulative ACE
+    over seeds 0-9 for one method.  Axes follow the paper's Figure 2 (0-200
+    tasks for the synthetic datasets, 0-30 for Landmine, 0-15 for Spam, 0-140
+    for London; 0-100 ACE for classification and 0-60 for regression), which
+    makes the numerical gap to the paper visible without hiding the method
+    ordering.
+    """
+    plt = _pyplot()
+    _paper_style(plt)
+    panels = [
+        ("syn1", "syn1", 200, 25, 100, "classification"),
+        ("syn2", "syn2", 200, 25, 100, "classification"),
+        ("landmine", "Landmine", 30, 5, 100, "classification"),
+        ("spam", "Spam", 15, 3, 100, "classification"),
+        ("syn3", "syn3", 200, 25, 60, "regression"),
+        ("syn4", "syn4", 200, 25, 60, "regression"),
+        ("london", "London", 140, 20, 60, "regression"),
+    ]
+    if not results:
+        return None
+
+    # The paper's legend order is ITOL, TOL, Unif_Sum, AKLO, TranOL, OTB.
+    methods = ["itol", "tol", "unif_sum", "aklo", "tranol", "otb"]
+    letters = "abcdefg"
+    fig, axes = plt.subplots(2, 4, figsize=(16, 7.6), squeeze=False)
+    plotted = False
+    for panel_index, (dataset, title, x_max, x_step, y_max, task_type) in enumerate(
+        panels
+    ):
+        axis = axes[panel_index // 4][panel_index % 4]
+        for method in methods:
+            group = _method_results(results, dataset, method)
+            if not group:
+                continue
+            curve = _average_task_curve(group)
+            if curve is None:
+                continue
+            color, marker = METHOD_STYLES[method]
+            axis.plot(
+                np.arange(1, len(curve) + 1),
+                curve,
+                color=color,
+                marker=marker,
+                markersize=4,
+                markerfacecolor="white",
+                markeredgewidth=1.0,
+                markevery=10,
+                linewidth=1.4,
+                label=METHOD_LABELS[method],
+            )
+            plotted = True
+        axis.set_xlim(0, x_max)
+        axis.set_xticks(np.arange(0, x_max + 1, x_step))
+        axis.set_ylim(0, y_max)
+        axis.set_xlabel("Task Index", labelpad=2)
+        axis.set_ylabel("ACE (%)" if task_type == "classification" else "ACE")
+        axis.legend(loc="upper right", fontsize=6.0, frameon=True)
+        axis.text(
+            0.5,
+            -0.30,
+            f"({letters[panel_index]}) {title}",
+            transform=axis.transAxes,
+            ha="center",
+            va="top",
+            fontsize=10,
+        )
+    axes[1][3].axis("off")
+    if not plotted:
+        plt.close(fig)
+        return None
+    fig.subplots_adjust(bottom=0.16, hspace=0.55, wspace=0.30)
+    path = output_dir / "figure2_ace_evolution.png"
+    fig.savefig(path, dpi=160, bbox_inches="tight")
+    plt.close(fig)
+    return path
 
 
 def figure_e2(results: list[dict[str, Any]], output_dir: Path) -> Path | None:
@@ -984,6 +1075,7 @@ def _paper_sensitivity_figure(
 
 
 def figure_e4(results: list[dict[str, Any]], output_dir: Path) -> Path | None:
+    """Paper Figure 4: classification sensitivity panels."""
     return _paper_sensitivity_figure(
         results,
         "e4_sensitivity_cls",
@@ -992,6 +1084,7 @@ def figure_e4(results: list[dict[str, Any]], output_dir: Path) -> Path | None:
 
 
 def figure_e5(results: list[dict[str, Any]], output_dir: Path) -> Path | None:
+    """Paper Figure 5: regression sensitivity panels."""
     return _paper_sensitivity_figure(
         results,
         "e5_sensitivity_reg",
@@ -1434,6 +1527,13 @@ def build_report(
 
     if make_figures:
         figures = [
+            (
+                "figure2_ace_evolution.png",
+                figure_paper2(load_results(results_dir, "e1_main"), output_dir),
+                "Figure 2 reproduction: mean cumulative ACE over 10 seeds for "
+                "the four classification datasets (a-d) and the three "
+                "regression datasets (e-g). Panels reuse the E1 runs.",
+            ),
             (
                 "e2_small_m.png",
                 figure_e2(load_results(results_dir, "e2_small_m"), output_dir),

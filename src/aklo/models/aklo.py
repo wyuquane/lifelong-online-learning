@@ -27,6 +27,7 @@ class AKLOSnapshotPredictor:
     alpha: float
 
     def predict(self, x: Any) -> float:
+        """Mix the frozen meta and current predictions with ``alpha``."""
         current_prediction = self.current.predict(x)
         if self.meta is None:
             return current_prediction
@@ -54,6 +55,7 @@ class AKLO:
         config: dict[str, Any],
         seed: int = 0,
     ) -> None:
+        """Initialize AKLO with the paper's hyperparameters and empty state."""
         self.dim = int(dim)
         self.task_type = task_type
         self.config = dict(config)
@@ -88,6 +90,7 @@ class AKLO:
         return self._snapshot_matrix
 
     def _alpha_sum(self, n_samples: int) -> float:
+        """Return ``sum_i max(0, 1 - delta_alpha * i)`` for one task."""
         return float(
             sum(max(0.0, 1.0 - self.delta_alpha * i) for i in range(n_samples))
         )
@@ -138,6 +141,7 @@ class AKLO:
             self.meta = None
 
     def predict(self, x: Any) -> float:
+        """Return the alpha-weighted mixture for one observation."""
         if self.current is None:
             raise RuntimeError("start_task must be called before predict")
         current_prediction = self.current.predict(x)
@@ -147,6 +151,7 @@ class AKLO:
         return self.alpha * meta_prediction + (1.0 - self.alpha) * current_prediction
 
     def update(self, x: Any, y: float) -> None:
+        """Update the meta and current predictors, then decay ``alpha``."""
         if self.current is None:
             raise RuntimeError("start_task must be called before update")
         if self.meta is not None:
@@ -155,6 +160,7 @@ class AKLO:
         self.alpha = max(0.0, self.alpha - self.delta_alpha)
 
     def end_task(self) -> LinearSnapshot:
+        """Freeze the task predictor and add it to the knowledge base."""
         if self.current is None:
             raise RuntimeError("start_task must be called before end_task")
         snapshot = self.current.snapshot(
@@ -183,6 +189,7 @@ class AKLO:
         return snapshot
 
     def state(self) -> dict[str, float | int | str | None]:
+        """Return diagnostic scalars for the current model state."""
         return {
             "alpha": self.alpha,
             "epsilon": self.epsilon,
@@ -196,6 +203,7 @@ class AKLO:
         }
 
     def selected_models(self) -> list[LinearSnapshot]:
+        """Return the full knowledge base (AKLO keeps every model)."""
         return list(self.snapshots)
 
     def final_predictor(self, task_index: int) -> AKLOSnapshotPredictor:

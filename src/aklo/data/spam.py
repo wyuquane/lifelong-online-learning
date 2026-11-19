@@ -17,6 +17,7 @@ def _split_sparse(
     test_fraction: float,
     seed: int,
 ) -> tuple[sparse.csr_matrix, np.ndarray, sparse.csr_matrix | None, np.ndarray | None]:
+    """Split one sparse user task into train/test matrices."""
     if test_fraction <= 0 or len(y) < 2:
         return X, y, None, None
     n_test = max(1, int(round(len(y) * test_fraction)))

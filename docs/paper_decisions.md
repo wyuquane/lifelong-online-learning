@@ -167,13 +167,15 @@ qualitative.
 
 ## 6. Data acquisition
 
-The current reproduction reads local files under `data/`. The original plan
-was to load the real datasets programmatically from Hugging Face or Kaggle;
-that is not implemented because the local copies are already prepared and the
-public mirrors are not stable enough to guarantee byte-identical files. The
-loader API is isolated in `src/aklo/data/`, so a downloader can be added
-without touching the models or the runner. `data/README.md` documents the
-expected files and provenance.
+The real datasets are downloaded programmatically from the public Kaggle
+dataset [`wyuquane/aklo-real-world-dataset`](https://www.kaggle.com/datasets/wyuquane/aklo-real-world-dataset)
+(MIT licence, version 1, no authentication). `scripts/prepare_data.py
+--download` uses `kagglehub`, copies the files into the layout expected by the
+loaders, and verifies their sizes and SHA-256 digests against the committed
+[`data/manifest.json`](../data/manifest.json). `--check` performs the same
+validation without downloading. The loaders remain isolated in
+`src/aklo/data/`, so replacing the data source does not touch the models or the
+runner. `data/README.md` documents the file layout and original provenance.
 
 ## 7. Results that do not match the paper
 

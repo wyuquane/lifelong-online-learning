@@ -70,6 +70,7 @@ class AKLOMS(AKLO):
         config: dict[str, Any],
         seed: int = 0,
     ) -> None:
+        """Initialize AKLOMS with the cover threshold ``tau`` and empty state."""
         super().__init__(dim, task_type, config, seed)
         self.tau = float(self.config.get("tau", 0.001))
         self.knowledge_base: list[LinearSnapshot] = []
@@ -80,6 +81,7 @@ class AKLOMS(AKLO):
     # Knowledge-base helpers
     # ------------------------------------------------------------------
     def _matrix(self) -> np.ndarray:
+        """Stack the full knowledge base into a weight matrix."""
         if self._knowledge_matrix is None:
             if self.knowledge_base:
                 self._knowledge_matrix = np.vstack(
@@ -90,9 +92,11 @@ class AKLOMS(AKLO):
         return self._knowledge_matrix
 
     def _cover_snapshots(self) -> list[LinearSnapshot]:
+        """Return the snapshots currently in the covering set."""
         return [self.knowledge_base[index] for index in self.cover_indices]
 
     def _epsilon(self) -> float:
+        """Return the Algorithm 3 epsilon for the current cover."""
         if not self.cover_indices or self.alpha_sum <= 0.0:
             return 0.0
         if self.tau <= 0.0:
@@ -104,6 +108,7 @@ class AKLOMS(AKLO):
         return math.sqrt(len(self.cover_indices) / (2.0 * self.alpha_sum))
 
     def _rebuild_meta(self) -> None:
+        """Rebuild the meta-hypothesis from the current covering set."""
         cover = self._cover_snapshots()
         self.epsilon = self._epsilon()
         if cover:
@@ -124,6 +129,7 @@ class AKLOMS(AKLO):
         task_id: str | None = None,
         category: str | None = None,
     ) -> None:
+        """Initialize the task predictor and seed the covering set."""
         super().start_task(task_index, n_samples, task_id, category)
         self.cover_indices = []
         if self.knowledge_base:
@@ -136,6 +142,7 @@ class AKLOMS(AKLO):
         self._rebuild_meta()
 
     def update(self, x: Any, y: float) -> None:
+        """Grow the cover if needed, then update both predictors."""
         if self.current is None:
             raise RuntimeError("start_task must be called before update")
 
@@ -154,6 +161,7 @@ class AKLOMS(AKLO):
         self.alpha = max(0.0, self.alpha - self.delta_alpha)
 
     def end_task(self) -> LinearSnapshot:
+        """Freeze the task predictor and append it to the knowledge base."""
         if self.current is None:
             raise RuntimeError("start_task must be called before end_task")
         snapshot = self.current.snapshot(
@@ -167,6 +175,7 @@ class AKLOMS(AKLO):
     # Diagnostics
     # ------------------------------------------------------------------
     def state(self) -> dict[str, float | int | str | None]:
+        """Return AKLO diagnostics plus cover size and retention ratio."""
         state = super().state()
         state.update(
             {
@@ -183,6 +192,7 @@ class AKLOMS(AKLO):
         return state
 
     def selected_models(self) -> list[LinearSnapshot]:
+        """Return the snapshots retained in the covering set."""
         return self._cover_snapshots()
 
     def final_predictor(self, task_index: int) -> "AKLOMS":

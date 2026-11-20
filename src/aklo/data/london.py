@@ -17,10 +17,12 @@ _DENOMINATIONS = [1, 2, 3]
 
 
 def _one_hot(value: int, categories: list[int]) -> list[float]:
+    """Encode ``value`` as a one-hot vector over ``categories``."""
     return [1.0 if value == category else 0.0 for category in categories]
 
 
 def _parse(path: str | Path) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+    """Parse the fixed-width London file into features, targets, and schools."""
     rows: list[list[float]] = []
     targets: list[float] = []
     schools: list[int] = []

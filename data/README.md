@@ -1,27 +1,60 @@
 # Data
 
-The reproduction reads three local datasets. They are **not committed** to git
-because of size and licensing; place them at the paths below before running
-the real-data experiments. Synthetic datasets are generated in code and need
-no files.
+The reproduction reads three real datasets. They are distributed as one public
+Kaggle dataset:
+
+* **Dataset:** [`wyuquane/aklo-real-world-dataset`](https://www.kaggle.com/datasets/wyuquane/aklo-real-world-dataset)
+* **Version:** 1
+* **Licence:** MIT
+* **Authentication:** none; the download works without a Kaggle account or API
+  key.
+
+The raw files are **not committed** to git because of size. Synthetic datasets
+`syn1`–`syn4` are generated in code and need no files.
+
+## Download and validation
+
+```bash
+# Download the public Kaggle archive and copy the expected files into data/
+python scripts/prepare_data.py --download
+
+# Validate presence, size, and SHA-256 checksums (default action)
+python scripts/prepare_data.py --check
+
+# Re-download and overwrite existing files
+python scripts/prepare_data.py --download --force
+
+# Use a different destination directory
+python scripts/prepare_data.py --download --data-dir /path/to/data
+```
+
+The expected paths, sizes, and SHA-256 digests are recorded in
+[`manifest.json`](manifest.json). `--download` uses
+[`kagglehub`](https://github.com/Kaggle/kagglehub) and copies the files from the
+Kaggle cache into the layout below. The London files are nested under
+`london-school/london-school/` in the Kaggle archive; the downloader locates
+them and writes the flat `london-school/` layout expected by the loader.
 
 ```
 data/
-├── landmine-detection.csv          # 2.8 MB
-├── spam-detection.npz              # 1.9 MB
+├── manifest.json                   # committed checksum manifest
+├── landmine-detection.csv          # 2,760,835 bytes
+├── spam-detection.npz              # 1,910,501 bytes
 └── london-school/
-    ├── ILEA567.DAT                 # 277 KB, used by the loader
-    ├── ILEA567.ASC                 # original documentation/auxiliary file
-    └── ILEA567.WS                  # original worksheet file
+    ├── ILEA567.DAT                 # 276,517 bytes, used by the loader
+    ├── ILEA567.ASC                 # 2,868 bytes, original documentation
+    └── ILEA567.WS                  # 650,025 bytes, original worksheet
 ```
 
-Validate the local files with
+The manifest is the source of truth for integrity checks:
 
-```bash
-python scripts/prepare_data.py
-```
-
-The script only checks presence and shape; it does not download anything.
+| File | SHA-256 (first 16 hex characters) |
+| --- | --- |
+| `landmine-detection.csv` | `7396407a1a926a08` |
+| `spam-detection.npz` | `8b54bcf1ef29534c` |
+| `london-school/ILEA567.DAT` | `57bbbfd28db39a13` |
+| `london-school/ILEA567.ASC` | `8d9d6cf24b1dd17e` |
+| `london-school/ILEA567.WS` | `8397e63b0f2fc909` |
 
 ## Landmine detection
 
@@ -33,7 +66,7 @@ The script only checks presence and shape; it does not download anything.
   task. No bias feature is appended (a documented deviation).
 * **Provenance:** the Landmine detection benchmark introduced by Xue et al.
   and distributed through several public machine-learning repositories. The
-  local CSV is a task-indexed copy of that benchmark.
+  Kaggle archive contains a task-indexed CSV copy of that benchmark.
 
 ## Spam detection
 
@@ -45,7 +78,7 @@ The script only checks presence and shape; it does not download anything.
 * **Preprocessing:** raw word counts, no TF-IDF or normalization. For each run,
   200 messages are sampled without replacement per user.
 * **Provenance:** ECML-PKDD 2006 Discovery Challenge spam data. The paper uses
-  14 users; the local archive has 15, and all 15 are used (documented
+  14 users; the Kaggle archive has 15, and all 15 are used (documented
   deviation).
 
 ## London School
@@ -59,6 +92,8 @@ The script only checks presence and shape; it does not download anything.
   `src/aklo/data/london.py` for the exact field offsets.
 * **Provenance:** the London School / ILEA dataset distributed by the
   Multilevel Modelling Centre and widely mirrored for regression benchmarks.
+  The `.ASC` and `.WS` files are the original documentation and worksheet
+  shipped with the data; only `ILEA567.DAT` is read by the loader.
 
 ## Synthetic data
 
@@ -71,7 +106,12 @@ underlying sample pool.
 ## Reproducibility and licensing
 
 The raw files are kept out of version control. If you replace them, keep the
-same column names/shapes and rerun `python scripts/prepare_data.py`. The
-loaders are isolated under `src/aklo/data/`, so a future Hugging Face or Kaggle
-downloader can populate the same paths without changing the models or the
-runner. Check the original dataset licenses before redistributing any file.
+same column names/shapes and rerun `python scripts/prepare_data.py --check`.
+The loaders are isolated under `src/aklo/data/`, so the downloader populates the
+same paths without changing the models or the runner.
+
+The Kaggle packaging is released under the MIT licence. The original Landmine,
+Spam, and London School datasets may carry their own terms; check the original
+sources before redistributing any raw file. The checksum manifest is committed
+so a future archive change is detected instead of silently changing the
+experiments.

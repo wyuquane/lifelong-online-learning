@@ -10,6 +10,7 @@ from .baselines import ITOL, OTB, TOL, TranOL, UnifSum
 
 
 def _resolve_config(model_config: dict[str, Any], task_type: str) -> dict[str, Any]:
+    """Merge the task-specific model section over the shared defaults."""
     resolved = {
         key: value
         for key, value in model_config.items()

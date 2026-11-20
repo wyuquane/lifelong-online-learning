@@ -36,6 +36,7 @@ def deep_merge(base: dict[str, Any], override: dict[str, Any]) -> dict[str, Any]
 
 
 def _resolve(path: str | Path) -> Path:
+    """Resolve a relative path against the repository root."""
     path = Path(path)
     return path if path.is_absolute() else ROOT / path
 

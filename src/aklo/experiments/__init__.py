@@ -8,6 +8,7 @@ from ..runner import RunSpec
 
 
 def _seeds(experiment: dict[str, Any], base: dict[str, Any]) -> list[int]:
+    """Return the experiment's seeds, falling back to the base config."""
     return [int(seed) for seed in experiment.get("seeds", base.get("seeds", [0]))]
 
 
@@ -18,12 +19,14 @@ def _data_seed(experiment: dict[str, Any]) -> int | None:
 
 
 def _label(value: Any) -> str:
+    """Format a sweep value compactly for a run name."""
     if isinstance(value, float):
         return f"{value:g}"
     return str(value)
 
 
 def _supports(model_config: dict[str, Any], task_type: str | None) -> bool:
+    """Return whether a method supports the dataset's task type."""
     supported = model_config.get("supported_task_types")
     return supported is None or task_type in supported
 
@@ -46,6 +49,7 @@ def _make_spec(
     log_selected_models: bool = False,
     notes: dict[str, Any] | None = None,
 ) -> RunSpec:
+    """Assemble one run specification from experiment and model settings."""
     run_name = f"{experiment_name}-{dataset_name}-{method}{suffix}-s{seed}"
     # One W&B group per configuration: every seed of the same run name (minus
     # the seed suffix) belongs to the same group.  W&B has a single ``group``
@@ -76,6 +80,7 @@ def _make_spec(
 # Individual experiment families
 # ---------------------------------------------------------------------------
 def _e1_main(experiment: dict[str, Any], config: dict[str, Any]) -> list[RunSpec]:
+    """Build the main method x dataset comparison (paper Table 1)."""
     name = experiment["experiment"]
     specs: list[RunSpec] = []
     for dataset_name in experiment["datasets"]:
@@ -104,6 +109,7 @@ def _e1_main(experiment: dict[str, Any], config: dict[str, Any]) -> list[RunSpec
 
 
 def _e2_small_m(experiment: dict[str, Any], config: dict[str, Any]) -> list[RunSpec]:
+    """Build the per-task sample-count sweep (paper Figure 3)."""
     name = experiment["experiment"]
     dataset_name = experiment["dataset"]
     specs: list[RunSpec] = []
@@ -177,6 +183,7 @@ def _e3_catastrophic_forgetting(
 
 
 def _sensitivity(experiment: dict[str, Any], config: dict[str, Any]) -> list[RunSpec]:
+    """Build the one-parameter-at-a-time sensitivity sweeps (Figures 4/5)."""
     name = experiment["experiment"]
     dataset_name = experiment["dataset"]
     method = experiment["method"]
@@ -208,6 +215,7 @@ def _sensitivity(experiment: dict[str, Any], config: dict[str, Any]) -> list[Run
 def _e6_akloms_tau(
     experiment: dict[str, Any], config: dict[str, Any]
 ) -> list[RunSpec]:
+    """Build the AKLOMS ``tau`` sweep (paper Table 3)."""
     name = experiment["experiment"]
     method = experiment["method"]
     specs: list[RunSpec] = []
@@ -237,6 +245,7 @@ def _e6_akloms_tau(
 def _e7_akloms_models(
     experiment: dict[str, Any], config: dict[str, Any]
 ) -> list[RunSpec]:
+    """Build the AKLOMS task-count and ``tau`` grid (paper Figure 7)."""
     name = experiment["experiment"]
     dataset_name = experiment["dataset"]
     method = experiment["method"]
@@ -284,6 +293,7 @@ def _e7_akloms_models(
 
 
 def _e8_runtime(experiment: dict[str, Any], config: dict[str, Any]) -> list[RunSpec]:
+    """Build the AKLO/AKLOMS runtime grids (paper Figure 8)."""
     name = experiment["experiment"]
     dataset_name = experiment["dataset"]
     specs: list[RunSpec] = []
@@ -368,4 +378,5 @@ def build_specs(config: dict[str, Any]) -> list[RunSpec]:
 
 
 def experiment_names() -> list[str]:
+    """Return the names of all registered experiment builders."""
     return list(_BUILDERS)

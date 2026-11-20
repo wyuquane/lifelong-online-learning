@@ -7,4 +7,5 @@ python-dotenv>=1.0
 wandb==0.31.0
 matplotlib>=3.8
 tqdm>=4.66
+kagglehub==1.0.3
 pytest>=8.0

@@ -69,12 +69,14 @@ def loss_values(
 
 
 def _row(X: Any, index: int) -> Any:
+    """Return one row of a dense or sparse feature matrix."""
     if sparse.issparse(X):
         return X.getrow(index)
     return X[index]
 
 
 def _row_norm(x: Any) -> float:
+    """Return the Euclidean norm of one dense or sparse row."""
     if sparse.issparse(x):
         row = x.tocsr()
         return float(np.sqrt(row.data @ row.data))
@@ -82,6 +84,7 @@ def _row_norm(x: Any) -> float:
 
 
 def _max_row_norm(X: Any) -> float:
+    """Return the largest row norm in a dense or sparse matrix."""
     if sparse.issparse(X):
         return float(np.sqrt(X.multiply(X).sum(axis=1)).max())
     return float(np.linalg.norm(np.asarray(X, dtype=np.float64), axis=1).max())
@@ -114,10 +117,12 @@ class TaskTrace:
 
     @property
     def n_samples(self) -> int:
+        """Return the number of traced observations in the task."""
         return int(len(self.y))
 
     @property
     def n_members(self) -> int:
+        """Return the number of knowledge-base members in the trace."""
         return int(self.member_pred.shape[1])
 
 
@@ -234,6 +239,7 @@ def trace_stream(
 # Constrained current-predictor optimum
 # ---------------------------------------------------------------------------
 def _loss_sum(w: np.ndarray, X: np.ndarray, y: np.ndarray, loss: str) -> float:
+    """Return the total loss of weights ``w`` on ``(X, y)``."""
     return float(loss_values(y, X @ w, loss).sum())
 
 
@@ -757,6 +763,7 @@ def analyze_trace(
         )
 
     def _fraction(key: str) -> float:
+        """Return the fraction of tasks whose ratio is at least one."""
         values = [
             record[key] >= 1.0
             for record in task_records
@@ -765,6 +772,7 @@ def analyze_trace(
         return float(np.mean(values)) if values else math.nan
 
     def _median(key: str) -> float:
+        """Return the median finite value of one per-task field."""
         values = [
             record[key]
             for record in task_records
@@ -865,6 +873,7 @@ def analyze_trace(
 # Markdown rendering
 # ---------------------------------------------------------------------------
 def _format(value: Any, digits: int = 4) -> str:
+    """Format a value for the Markdown theory report."""
     if value is None:
         return "—"
     if isinstance(value, bool):

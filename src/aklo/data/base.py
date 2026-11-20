@@ -24,16 +24,19 @@ class TaskData:
     category: str | None = None
 
     def __post_init__(self) -> None:
+        """Normalize label arrays to flat NumPy arrays."""
         self.y_train = np.asarray(self.y_train).ravel()
         if self.y_test is not None:
             self.y_test = np.asarray(self.y_test).ravel()
 
     @property
     def n_train(self) -> int:
+        """Return the number of training examples in the task."""
         return int(self.y_train.shape[0])
 
     @property
     def n_features(self) -> int:
+        """Return the number of input features in the task."""
         return int(self.X_train.shape[1])
 
 
@@ -46,13 +49,16 @@ class TaskStream:
     tasks: list[TaskData] = field(default_factory=list)
 
     def __len__(self) -> int:
+        """Return the number of tasks in the stream."""
         return len(self.tasks)
 
     def __iter__(self):
+        """Iterate over the tasks in stream order."""
         return iter(self.tasks)
 
     @property
     def n_features(self) -> int:
+        """Return the feature count shared by the stream's tasks."""
         if not self.tasks:
             raise ValueError("Empty task stream")
         return self.tasks[0].n_features

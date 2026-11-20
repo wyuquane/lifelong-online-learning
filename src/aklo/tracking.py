@@ -26,6 +26,7 @@ class WandbLogger:
         tags: list[str] | None = None,
         enabled: bool = True,
     ) -> None:
+        """Store the run metadata and resolve the effective W&B mode."""
         if load_dotenv is not None:
             load_dotenv()
         self.config = config
@@ -39,11 +40,13 @@ class WandbLogger:
 
     @property
     def url(self) -> str | None:
+        """Return the W&B run URL, or ``None`` when tracking is disabled."""
         if self.run is None:
             return None
         return getattr(self.run, "url", None)
 
     def init(self) -> None:
+        """Start a W&B run, falling back to local-only mode on failure."""
         if not self.enabled:
             return
         import wandb
@@ -66,18 +69,22 @@ class WandbLogger:
             self.run = None
 
     def define_metric(self, pattern: str, step_metric: str) -> None:
+        """Declare a custom W&B metric and its step axis."""
         if self.enabled and self.run is not None:
             self.run.define_metric(pattern, step_metric=step_metric)
 
     def log(self, data: dict[str, Any], step: int | None = None) -> None:
+        """Log one metric dictionary at an optional step."""
         if self.enabled and self.run is not None:
             self.run.log(data, step=step)
 
     def log_summary(self, data: dict[str, Any]) -> None:
+        """Write final metrics to the W&B run summary."""
         if self.enabled and self.run is not None:
             for key, value in data.items():
                 self.run.summary[key] = value
 
     def finish(self) -> None:
+        """Close the W&B run if one was started."""
         if self.enabled and self.run is not None:
             self.run.finish()

@@ -20,6 +20,7 @@ from scipy import sparse
 
 
 def _dot(weights: np.ndarray, x: Any) -> float:
+    """Compute ``weights @ x`` for a dense or single-row sparse vector."""
     if sparse.issparse(x):
         row = x.tocsr()
         if row.shape[0] != 1:
@@ -29,6 +30,7 @@ def _dot(weights: np.ndarray, x: Any) -> float:
 
 
 def _nonzero(x: Any) -> tuple[np.ndarray, np.ndarray]:
+    """Return the indices and values of the non-zero entries of ``x``."""
     if sparse.issparse(x):
         row = x.tocsr()
         if row.shape[0] != 1:
@@ -49,10 +51,12 @@ class LinearSnapshot:
     category: str | None = None
 
     def predict(self, x: Any) -> float:
+        """Return the frozen linear prediction for one observation."""
         return self.s * _dot(self.u, x)
 
     @property
     def weights(self) -> np.ndarray:
+        """Return the effective weight vector ``s * u``."""
         return self.s * self.u
 
 
@@ -66,6 +70,7 @@ class OnlineLinearModel:
         eta: float = 1.0,
         lambda_: float = 0.001,
     ) -> None:
+        """Initialize an all-zero predictor with the chosen loss and rates."""
         if loss not in {"hinge", "absolute"}:
             raise ValueError(f"Unknown loss: {loss}")
         self.dim = int(dim)
@@ -77,9 +82,11 @@ class OnlineLinearModel:
         self.n_updates = 0
 
     def predict(self, x: Any) -> float:
+        """Return the current linear prediction for one observation."""
         return self.s * _dot(self.u, x)
 
     def _apply_decay(self) -> None:
+        """Apply the lazy weight decay to the scale factor ``s``."""
         decay = 1.0 - self.lambda_ * self.eta
         if decay <= 0.0:
             self.u.fill(0.0)
@@ -91,6 +98,7 @@ class OnlineLinearModel:
             self.s = 1.0
 
     def update(self, x: Any, y: float) -> None:
+        """Apply one online gradient step for hinge or absolute loss."""
         prediction = self.predict(x)
         if self.loss == "hinge":
             coefficient = -float(y) if float(y) * prediction < 1.0 else 0.0
@@ -105,6 +113,7 @@ class OnlineLinearModel:
         self.n_updates += 1
 
     def snapshot(self, task_id: str | None = None, category: str | None = None) -> LinearSnapshot:
+        """Return an immutable copy of the current predictor."""
         return LinearSnapshot(
             u=self.u.copy(),
             s=float(self.s),
@@ -113,13 +122,16 @@ class OnlineLinearModel:
         )
 
     def load_snapshot(self, snapshot: LinearSnapshot) -> None:
+        """Replace the current weights with a saved snapshot."""
         self.u = snapshot.u.copy()
         self.s = float(snapshot.s)
         self.n_updates = 0
 
     @property
     def weights(self) -> np.ndarray:
+        """Return the effective weight vector ``s * u``."""
         return self.s * self.u
 
     def norm(self) -> float:
+        """Return the Euclidean norm of the effective weight vector."""
         return abs(self.s) * float(np.linalg.norm(self.u))

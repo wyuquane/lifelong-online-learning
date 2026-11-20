@@ -15,6 +15,7 @@ def _split(
     seed: int,
     task_type: str,
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray | None, np.ndarray | None]:
+    """Split synthetic data, stratifying classification labels when possible."""
     if test_fraction <= 0 or len(y) < 2:
         return X, y, None, None
     n_test = max(1, int(round(len(y) * test_fraction)))

@@ -60,6 +60,8 @@ class RunSpec:
 
 @dataclass
 class TaskMetrics:
+    """Per-task metrics recorded by the online training loop."""
+
     task_index: int
     task_id: str
     category: str | None
@@ -74,6 +76,8 @@ class TaskMetrics:
 
 @dataclass
 class RunResult:
+    """Serializable result of one executed run."""
+
     experiment: str
     dataset: str
     method: str
@@ -112,12 +116,14 @@ def to_jsonable(value: Any) -> Any:
 
 
 def _row(X: Any, index: int) -> Any:
+    """Return one row of a dense or sparse feature matrix."""
     if sparse.issparse(X):
         return X.getrow(index)
     return X[index]
 
 
 def _slice_rows(X: Any, n: int) -> Any:
+    """Return the first ``n`` rows of a dense or sparse matrix."""
     return X[:n]
 
 
@@ -302,7 +308,12 @@ def run_stream(
     list[dict[str, Any]] | None,
     list[dict[str, Any]] | None,
 ]:
-    """Train one learner on one stream and return metrics."""
+    """Train one learner on one stream and return metrics.
+
+    Returns the per-task metrics, the optional sample log, the summary
+    dictionary, and the optional selected/all model dumps.  The training timer
+    covers only the prediction/update loop, matching the E8 protocol.
+    """
     model = build_model(
         method,
         stream.n_features,
@@ -486,6 +497,7 @@ def run_stream(
     all_models = None
     if log_selected_models:
         def _dump(snapshot: Any) -> dict[str, Any] | None:
+            """Serialize one snapshot unless its weight vector is too large."""
             weights = np.asarray(snapshot.weights).ravel()
             if weights.size > 10_000:
                 # Do not dump very high-dimensional models into JSON.
@@ -514,6 +526,7 @@ def run_stream(
 
 
 def _task_log_payload(metrics: TaskMetrics) -> dict[str, Any]:
+    """Flatten one task's metrics into W&B metric names."""
     payload: dict[str, Any] = {
         "task": metrics.task_index,
         "task/ace": metrics.ace,

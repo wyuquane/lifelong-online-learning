@@ -29,6 +29,7 @@ class ACETracker:
     n: int = 0
 
     def update(self, y_true: float, y_pred: float) -> None:
+        """Add one prediction to the running error average."""
         if self.task_type == "classification":
             error = 0.0 if classify(y_pred) == float(y_true) else 1.0
         elif self.task_type == "regression":
@@ -40,6 +41,7 @@ class ACETracker:
 
     @property
     def value(self) -> float:
+        """Return the mean error observed so far (0 when empty)."""
         return self.total / self.n if self.n else 0.0
 
 
@@ -53,6 +55,7 @@ class ForgettingTracker:
     per_task: dict[str, float] = field(default_factory=dict)
 
     def add_task(self, task_id: str, y_true: np.ndarray, y_pred: np.ndarray) -> None:
+        """Evaluate one task's test set and add it to the pooled average."""
         tracker = ACETracker(self.task_type)
         for truth, prediction in zip(np.asarray(y_true).ravel(), np.asarray(y_pred).ravel()):
             tracker.update(float(truth), float(prediction))
@@ -62,6 +65,7 @@ class ForgettingTracker:
 
     @property
     def value(self) -> float:
+        """Return the pooled error over all evaluated tasks."""
         return self.total / self.n if self.n else 0.0
 
 

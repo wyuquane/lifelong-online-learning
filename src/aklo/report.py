@@ -823,26 +823,26 @@ def _paper_style(plt) -> None:
     )
 
 
-def figure_paper2(results: list[dict[str, Any]], output_dir: Path) -> Path | None:
+def figure_e1_main(results: list[dict[str, Any]], output_dir: Path) -> Path | None:
     """Paper Figure 2: ACE evolution on the four classification and three regression datasets.
 
     The seven panels reuse the E1 runs: each curve is the mean cumulative ACE
-    over seeds 0-9 for one method.  Axes follow the paper's Figure 2 (0-200
-    tasks for the synthetic datasets, 0-30 for Landmine, 0-15 for Spam, 0-140
-    for London; 0-100 ACE for classification and 0-60 for regression), which
-    makes the numerical gap to the paper visible without hiding the method
-    ordering.
+    over seeds 0-9 for one method.  Task-axis limits follow the paper's
+    Figure 2, while each panel gets its own y-axis range so the small
+    differences between methods stay readable.  Marker spacing adapts to the
+    number of tasks, which keeps the short Landmine and Spam curves as smooth
+    as the 200-task synthetic curves.
     """
     plt = _pyplot()
     _paper_style(plt)
     panels = [
-        ("syn1", "syn1", 200, 25, 100, "classification"),
-        ("syn2", "syn2", 200, 25, 100, "classification"),
-        ("landmine", "Landmine", 30, 5, 100, "classification"),
-        ("spam", "Spam", 15, 3, 100, "classification"),
-        ("syn3", "syn3", 200, 25, 60, "regression"),
-        ("syn4", "syn4", 200, 25, 60, "regression"),
-        ("london", "London", 140, 20, 60, "regression"),
+        ("syn1", "syn1", 200, 25, 10, 55, 10, "classification"),
+        ("syn2", "syn2", 200, 25, 10, 55, 10, "classification"),
+        ("landmine", "Landmine", 30, 5, 20, 100, 20, "classification"),
+        ("spam", "Spam", 15, 3, 15, 55, 10, "classification"),
+        ("syn3", "syn3", 200, 25, 0, 10, 2, "regression"),
+        ("syn4", "syn4", 200, 25, 0, 6, 1, "regression"),
+        ("london", "London", 140, 20, 10, 22, 2, "regression"),
     ]
     if not results:
         return None
@@ -852,9 +852,17 @@ def figure_paper2(results: list[dict[str, Any]], output_dir: Path) -> Path | Non
     letters = "abcdefg"
     fig, axes = plt.subplots(2, 4, figsize=(16, 7.6), squeeze=False)
     plotted = False
-    for panel_index, (dataset, title, x_max, x_step, y_max, task_type) in enumerate(
-        panels
-    ):
+    legend_handles: dict[str, Any] = {}
+    for panel_index, (
+        dataset,
+        title,
+        x_max,
+        x_step,
+        y_min,
+        y_max,
+        y_step,
+        task_type,
+    ) in enumerate(panels):
         axis = axes[panel_index // 4][panel_index % 4]
         for method in methods:
             group = _method_results(results, dataset, method)
@@ -864,7 +872,7 @@ def figure_paper2(results: list[dict[str, Any]], output_dir: Path) -> Path | Non
             if curve is None:
                 continue
             color, marker = METHOD_STYLES[method]
-            axis.plot(
+            (line,) = axis.plot(
                 np.arange(1, len(curve) + 1),
                 curve,
                 color=color,
@@ -872,17 +880,18 @@ def figure_paper2(results: list[dict[str, Any]], output_dir: Path) -> Path | Non
                 markersize=4,
                 markerfacecolor="white",
                 markeredgewidth=1.0,
-                markevery=10,
+                markevery=max(1, len(curve) // 10),
                 linewidth=1.4,
                 label=METHOD_LABELS[method],
             )
+            legend_handles[method] = line
             plotted = True
         axis.set_xlim(0, x_max)
         axis.set_xticks(np.arange(0, x_max + 1, x_step))
-        axis.set_ylim(0, y_max)
+        axis.set_ylim(y_min, y_max)
+        axis.set_yticks(np.arange(y_min, y_max + y_step * 0.5, y_step))
         axis.set_xlabel("Task Index", labelpad=2)
         axis.set_ylabel("ACE (%)" if task_type == "classification" else "ACE")
-        axis.legend(loc="upper right", fontsize=6.0, frameon=True)
         axis.text(
             0.5,
             -0.30,
@@ -893,11 +902,21 @@ def figure_paper2(results: list[dict[str, Any]], output_dir: Path) -> Path | Non
             fontsize=10,
         )
     axes[1][3].axis("off")
+    if legend_handles:
+        axes[1][3].legend(
+            [legend_handles[method] for method in methods if method in legend_handles],
+            [METHOD_LABELS[method] for method in methods if method in legend_handles],
+            loc="center",
+            fontsize=9,
+            frameon=False,
+            title="Methods",
+            title_fontsize=10,
+        )
     if not plotted:
         plt.close(fig)
         return None
     fig.subplots_adjust(bottom=0.16, hspace=0.55, wspace=0.30)
-    path = output_dir / "figure2_ace_evolution.png"
+    path = output_dir / "e1_main.png"
     fig.savefig(path, dpi=160, bbox_inches="tight")
     plt.close(fig)
     return path
@@ -1528,11 +1547,11 @@ def build_report(
     if make_figures:
         figures = [
             (
-                "figure2_ace_evolution.png",
-                figure_paper2(load_results(results_dir, "e1_main"), output_dir),
-                "Figure 2 reproduction: mean cumulative ACE over 10 seeds for "
-                "the four classification datasets (a-d) and the three "
-                "regression datasets (e-g). Panels reuse the E1 runs.",
+                "e1_main.png",
+                figure_e1_main(load_results(results_dir, "e1_main"), output_dir),
+                "Figure 2 reproduction (E1 main runs): mean cumulative ACE "
+                "over 10 seeds for the four classification datasets (a-d) and "
+                "the three regression datasets (e-g).",
             ),
             (
                 "e2_small_m.png",

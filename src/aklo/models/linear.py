@@ -98,7 +98,25 @@ class OnlineLinearModel:
             self.s = 1.0
 
     def update(self, x: Any, y: float) -> None:
-        """Apply one online gradient step for hinge or absolute loss."""
+        """Apply one online gradient step for the configured loss.
+
+        The prediction is computed with the current weights, the lazy weight
+        decay is applied to the scale factor, and the non-zero coordinates of
+        ``x`` are updated.  Hinge loss updates only when ``y * prediction < 1``;
+        absolute loss uses the sign of the residual.
+
+        Parameters
+        ----------
+        x : Any
+            One feature vector, dense or single-row sparse.
+        y : float
+            Observed label or target.
+
+        Returns
+        -------
+        None
+            The predictor is updated in place.
+        """
         prediction = self.predict(x)
         if self.loss == "hinge":
             coefficient = -float(y) if float(y) * prediction < 1.0 else 0.0
@@ -113,7 +131,21 @@ class OnlineLinearModel:
         self.n_updates += 1
 
     def snapshot(self, task_id: str | None = None, category: str | None = None) -> LinearSnapshot:
-        """Return an immutable copy of the current predictor."""
+        """Create an immutable snapshot of the current predictor.
+
+        Parameters
+        ----------
+        task_id : str | None, optional
+            Task identifier stored with the snapshot.
+        category : str | None, optional
+            Optional task category stored with the snapshot.
+
+        Returns
+        -------
+        LinearSnapshot
+            A copy of the current weights and scale, safe to retain after the
+            live model is updated further.
+        """
         return LinearSnapshot(
             u=self.u.copy(),
             s=float(self.s),

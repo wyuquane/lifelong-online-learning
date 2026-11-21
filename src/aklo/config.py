@@ -42,11 +42,21 @@ def _resolve(path: str | Path) -> Path:
 
 
 def load_config(experiment_path: str | Path) -> dict[str, Any]:
-    """Load base, experiment, dataset and model configurations.
+    """Load base, experiment, dataset, and model configurations.
 
-    Returns a dictionary with keys ``base``, ``experiment``, ``datasets``,
-    ``models`` and ``root``. Dataset and model configs are loaded by the
-    names listed in the experiment file.
+    Dataset and model configs are loaded by the names listed in the experiment
+    file.  Relative experiment paths are resolved against the repository root.
+
+    Parameters
+    ----------
+    experiment_path : str | Path
+        Experiment YAML path, absolute or relative to the repository root.
+
+    Returns
+    -------
+    dict[str, Any]
+        Dictionary with keys ``base``, ``experiment``, ``datasets``,
+        ``models``, and ``root``.
     """
     base = load_yaml(ROOT / "configs" / "base.yaml")
     experiment = load_yaml(_resolve(experiment_path))

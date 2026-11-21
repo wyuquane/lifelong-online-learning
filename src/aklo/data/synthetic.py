@@ -52,24 +52,35 @@ def make_synthetic(
 
     Parameters
     ----------
-    name:
+    name : str
         One of ``syn1``, ``syn2``, ``syn3`` or ``syn4``.
-    n_tasks:
+    n_tasks : int, optional
         Total number of tasks. Tasks are split evenly between the two
         distributions D1 and D2, then globally shuffled by the runner.
-    n_samples:
+    n_samples : int, optional
         Number of training observations per task.  The underlying sample pool
         is at least 300 observations, so experiments that vary ``m_t`` use
         nested prefixes of the same data.
-    seed:
+    seed : int, optional
         Seed for task parameters and observations.
-    test_fraction:
+    test_fraction : float, optional
         Optional held-out fraction used by the earlier E3 protocol. Ignored
         when ``n_test`` is positive.
-    n_test:
+    n_test : int, optional
         Number of held-out test observations per task.  The test rows are the
         next block of the same sample pool, so train and test are disjoint and
         share the task's distribution.  ``0`` disables the separate test set.
+
+    Returns
+    -------
+    TaskStream
+        A stream with ``n_tasks`` tasks, balanced across D1/D2 and with
+        optional held-out test splits.
+
+    Raises
+    ------
+    ValueError
+        If ``name`` is unknown or ``n_test`` is negative.
     """
     if name not in {"syn1", "syn2", "syn3", "syn4"}:
         raise ValueError(f"Unknown synthetic dataset: {name}")

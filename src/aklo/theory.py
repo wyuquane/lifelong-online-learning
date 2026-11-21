@@ -135,7 +135,30 @@ def trace_stream(
     max_tasks: int | None = None,
     track_norms: bool | None = None,
 ) -> list[TaskTrace]:
-    """Run one learner on ``stream`` and record per-sample theory quantities."""
+    """Run one learner and record the per-sample quantities used by the theory checks.
+
+    Parameters
+    ----------
+    stream : TaskStream
+        Task stream to train on.
+    method : str
+        Learner name understood by :func:`aklo.models.build_model`.
+    model_config : dict[str, Any]
+        Model configuration.
+    seed : int, optional
+        Seed for the learner and the global RNGs.
+    model_overrides : dict[str, Any] | None, optional
+        Per-run model overrides.
+    max_tasks : int | None, optional
+        Limit the trace to the first ``max_tasks`` tasks.
+    track_norms : bool | None, optional
+        Record weight norms; defaults to true only for at most 2000 features.
+
+    Returns
+    -------
+    list[TaskTrace]
+        One trace per evaluated task.
+    """
     seed_everything(seed)
     model = build_model(
         method,
@@ -553,7 +576,40 @@ def analyze_trace(
     tau: float | None = None,
     packing_task_indices: set[int] | None = None,
 ) -> dict[str, Any]:
-    """Compute Theorem 1, Corollary 1.1 and Corollary 1.2 diagnostics."""
+    """Compute Theorem 1 and Corollary 1.1/1.2 diagnostics from traces.
+
+    Parameters
+    ----------
+    traces : list[TaskTrace]
+        Output of :func:`trace_stream`.
+    task_type : str
+        ``"classification"`` or ``"regression"``.
+    meta_loss : str
+        Loss used by the meta-hypothesis.
+    current_loss : str
+        Loss used by the current predictor.
+    R : float | None, optional
+        Weight-norm bound; defaults to the largest observed norm.
+    R_multipliers : tuple[float, ...], optional
+        Multipliers used to test bound sensitivity to ``R``.
+    gamma_values : tuple[float, ...], optional
+        Cover-packing thresholds for Corollary 1.2.
+    tau : float | None, optional
+        AKLOMS cover radius, when applicable.
+    packing_task_indices : set[int] | None, optional
+        Tasks to include in the packing check.
+
+    Returns
+    -------
+    dict[str, Any]
+        Nested diagnostics with per-task records and aggregate summaries for
+        Theorem 1, Corollary 1.1, and Corollary 1.2.
+
+    Raises
+    ------
+    ValueError
+        If ``traces`` is empty or no positive ``R`` is available.
+    """
     if not traces:
         raise ValueError("No task traces")
 

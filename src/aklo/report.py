@@ -270,7 +270,23 @@ PAPER_TABLE3: dict[str, dict[str, float]] = {
 # Loading and formatting helpers
 # ---------------------------------------------------------------------------
 def load_results(results_dir: str | Path, experiment: str | None = None) -> list[dict[str, Any]]:
-    """Load JSON result files, optionally restricted to one experiment."""
+    """Load JSON result files, optionally restricted to one experiment.
+
+    Smoke-test results are skipped.  Malformed or unreadable files are
+    reported and ignored so a partially written run does not break the report.
+
+    Parameters
+    ----------
+    results_dir : str | Path
+        Directory containing ``<experiment>/*.json`` files.
+    experiment : str | None, optional
+        Experiment subdirectory to load; ``None`` loads every experiment.
+
+    Returns
+    -------
+    list[dict[str, Any]]
+        Parsed run dictionaries in filename order.
+    """
     directory = Path(results_dir)
     if experiment is not None:
         files = sorted((directory / experiment).glob("*.json"))
@@ -429,7 +445,19 @@ def _method_by_dataset_table(
 
 
 def table_e1(results: list[dict[str, Any]]) -> str:
-    """Main comparison table (paper Table 1 layout)."""
+    """Build the main comparison table in the paper's Table 1 layout.
+
+    Parameters
+    ----------
+    results : list[dict[str, Any]]
+        E1 run results loaded from JSON.
+
+    Returns
+    -------
+    str
+        GitHub-flavored Markdown table with one row per method and one column
+        per dataset; each cell links to the matching W&B group when available.
+    """
     return _method_by_dataset_table(results, "final_cumulative_ace")
 
 
@@ -824,14 +852,24 @@ def _paper_style(plt) -> None:
 
 
 def figure_e1_main(results: list[dict[str, Any]], output_dir: Path) -> Path | None:
-    """Paper Figure 2: ACE evolution on the four classification and three regression datasets.
+    """Build the paper's Figure 2 from the E1 per-task ACE curves.
 
-    The seven panels reuse the E1 runs: each curve is the mean cumulative ACE
-    over seeds 0-9 for one method.  Task-axis limits follow the paper's
-    Figure 2, while each panel gets its own y-axis range so the small
-    differences between methods stay readable.  Marker spacing adapts to the
-    number of tasks, which keeps the short Landmine and Spam curves as smooth
-    as the 200-task synthetic curves.
+    Each panel averages the cumulative ACE over seeds for one dataset; panels
+    (a)-(d) are classification and (e)-(g) are regression.  Task-axis limits
+    follow the paper, while y-axis limits and marker spacing are chosen per
+    panel so short streams and small method differences remain readable.
+
+    Parameters
+    ----------
+    results : list[dict[str, Any]]
+        E1 run results containing ``tasks[].cumulative_ace``.
+    output_dir : Path
+        Directory where ``e1_main.png`` is written.
+
+    Returns
+    -------
+    Path | None
+        Path to the generated PNG, or ``None`` when no curves are available.
     """
     plt = _pyplot()
     _paper_style(plt)
@@ -1394,7 +1432,22 @@ def build_report(
     output_dir: str | Path = "reports",
     make_figures: bool = True,
 ) -> Path:
-    """Build ``report.md`` and the figures from saved JSON results."""
+    """Build ``report.md`` and all figures from saved JSON results.
+
+    Parameters
+    ----------
+    results_dir : str | Path, optional
+        Directory containing experiment result subdirectories.
+    output_dir : str | Path, optional
+        Directory for ``report.md`` and generated figures.
+    make_figures : bool, optional
+        Generate PNG figures in addition to the Markdown tables.
+
+    Returns
+    -------
+    Path
+        Path to the written ``report.md``.
+    """
     results_dir = Path(results_dir)
     output_dir = Path(output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)

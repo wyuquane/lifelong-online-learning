@@ -46,7 +46,17 @@ class WandbLogger:
         return getattr(self.run, "url", None)
 
     def init(self) -> None:
-        """Start a W&B run, falling back to local-only mode on failure."""
+        """Start a W&B run, falling back to local-only mode on failure.
+
+        The effective mode comes from ``WANDB_MODE`` or the ``wandb.mode``
+        config entry.  If initialization fails, the logger disables itself and
+        the run continues with local JSON output.
+
+        Returns
+        -------
+        None
+            The logger's ``run`` and ``enabled`` fields are updated in place.
+        """
         if not self.enabled:
             return
         import wandb

@@ -34,14 +34,26 @@ def _eligible_additions(
     cover_indices: list[int],
     tau: float,
 ) -> np.ndarray:
-    """Knowledge-base indices at distance ``>= 2*tau`` from every cover model.
+    """Find knowledge-base models that can extend the covering set.
 
-    This is the exact vectorized equivalent of the pairwise check.  The cover
-    is a ``2*tau`` packing, so its predictions are separated; the nearest cover
-    prediction can therefore be found with a binary search instead of building
-    the full ``|knowledge base| x |cover|`` distance matrix.  The latter is
-    quadratic and dominates the runtime at small ``tau``, whereas the paper
-    treats distance comparison as negligible next to prediction.
+    A model is eligible when its prediction differs from every prediction
+    currently in the cover by at least ``2 * tau``.  The cover is a ``2 * tau``
+    packing, so checking the nearest sorted cover prediction is equivalent to
+    the full pairwise comparison while avoiding a quadratic distance matrix.
+
+    Parameters
+    ----------
+    predictions : np.ndarray
+        Predictions of every knowledge-base model on the current observation.
+    cover_indices : list[int]
+        Indices of the models currently in the covering set.
+    tau : float
+        Cover radius from the AKLOMS configuration.
+
+    Returns
+    -------
+    np.ndarray
+        Integer indices of eligible knowledge-base models, in ascending order.
     """
     if not cover_indices:
         return np.zeros(0, dtype=np.int64)
@@ -129,7 +141,28 @@ class AKLOMS(AKLO):
         task_id: str | None = None,
         category: str | None = None,
     ) -> None:
-        """Initialize the task predictor and seed the covering set."""
+        """Prepare AKLOMS for the next task and initialize its cover.
+
+        The method reuses AKLO's task setup, then either includes the full
+        knowledge base (``tau = 0``, the AKLO-equivalent case) or draws one
+        random model as the initial cover.
+
+        Parameters
+        ----------
+        task_index : int
+            Zero-based position of the task in the stream.
+        n_samples : int
+            Number of training observations in the task.
+        task_id : str | None, optional
+            Identifier stored in the task snapshot.
+        category : str | None, optional
+            Optional task category.
+
+        Returns
+        -------
+        None
+            The model is updated in place.
+        """
         super().start_task(task_index, n_samples, task_id, category)
         self.cover_indices = []
         if self.knowledge_base:
@@ -142,7 +175,30 @@ class AKLOMS(AKLO):
         self._rebuild_meta()
 
     def update(self, x: Any, y: float) -> None:
-        """Grow the cover if needed, then update both predictors."""
+        """Update AKLOMS after one labelled example.
+
+        Before the gradient step, the method checks whether any knowledge-base
+        model is far enough from the current cover; eligible models are added
+        and the meta-hypothesis is rebuilt.  The meta and current predictors
+        are then updated and ``alpha`` is decayed as in AKLO.
+
+        Parameters
+        ----------
+        x : Any
+            One feature vector, dense or single-row sparse.
+        y : float
+            Observed label (classification) or target (regression).
+
+        Returns
+        -------
+        None
+            The model is updated in place.
+
+        Raises
+        ------
+        RuntimeError
+            If ``start_task`` has not been called.
+        """
         if self.current is None:
             raise RuntimeError("start_task must be called before update")
 
@@ -161,7 +217,22 @@ class AKLOMS(AKLO):
         self.alpha = max(0.0, self.alpha - self.delta_alpha)
 
     def end_task(self) -> LinearSnapshot:
-        """Freeze the task predictor and append it to the knowledge base."""
+        """Freeze the task predictor and extend the knowledge base.
+
+        Unlike AKLO, AKLOMS does not save a per-task mixture snapshot; the E3
+        comparison excludes AKLOMS.  The new snapshot becomes available to the
+        cover starting with the next task.
+
+        Returns
+        -------
+        LinearSnapshot
+            The snapshot appended to the full knowledge base.
+
+        Raises
+        ------
+        RuntimeError
+            If ``start_task`` has not been called.
+        """
         if self.current is None:
             raise RuntimeError("start_task must be called before end_task")
         snapshot = self.current.snapshot(

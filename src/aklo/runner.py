@@ -138,9 +138,22 @@ def evaluate_tasks(
 ) -> dict[str, float]:
     """Evaluate a trained model on the held-out test sets of ``tasks``.
 
-    Returns the task-averaged ACE (the paper's definition), the pooled ACE,
-    and the mean over all tasks except ``include_current`` (used to separate
-    old-task forgetting from the current task's test performance).
+    Parameters
+    ----------
+    model : Any
+        Trained learner exposing ``predict``.
+    tasks : list[TaskData]
+        Tasks to evaluate; tasks without a test split are skipped.
+    task_type : str
+        ``"classification"`` or ``"regression"``.
+    include_current : str | None, optional
+        Task identifier to report separately as the current task.
+
+    Returns
+    -------
+    dict[str, float]
+        Task-averaged ACE, pooled ACE, old-task mean, current-task mean, and
+        the number of evaluated tasks and samples.
     """
     per_task: dict[str, float] = {}
     total_error = 0.0
@@ -215,14 +228,28 @@ def evaluate_final_test_sets(
     task_type: str,
     logger: WandbLogger | None = None,
 ) -> dict[str, float]:
-    """Evaluate every task's test set with the method-specific predictor.
+    """Evaluate every task with its method-specific final predictor.
 
-    This is the paper's Table 2 protocol: train once on the whole stream, then
-    feed the model the test samples of all tasks ``1..T`` and report the
-    task-averaged ACE.  The predictor is selected by
-    ``model.final_predictor(task_index)``: ITOL, AKLO, TranOL and OTB return a
-    frozen per-task snapshot, TOL returns its final online model, and Unif_Sum
-    returns the average of all task snapshots.  No parameter is updated here.
+    This implements the paper's Table 2 protocol: train once on the full
+    stream, then evaluate each task's test set with the predictor returned by
+    ``model.final_predictor(task_index)``.  No parameter is updated.
+
+    Parameters
+    ----------
+    model : Any
+        Trained learner exposing ``final_predictor``.
+    tasks : list[TaskData]
+        Tasks whose test sets are evaluated.
+    task_type : str
+        ``"classification"`` or ``"regression"``.
+    logger : WandbLogger | None, optional
+        Optional logger for per-task final-test metrics.
+
+    Returns
+    -------
+    dict[str, float]
+        Task-averaged ACE, pooled ACE, and the number of evaluated tasks and
+        samples.
     """
     per_task: list[float] = []
     total_error = 0.0
@@ -308,11 +335,44 @@ def run_stream(
     list[dict[str, Any]] | None,
     list[dict[str, Any]] | None,
 ]:
-    """Train one learner on one stream and return metrics.
+    """Train one learner on one task stream and collect metrics.
 
-    Returns the per-task metrics, the optional sample log, the summary
-    dictionary, and the optional selected/all model dumps.  The training timer
-    covers only the prediction/update loop, matching the E8 protocol.
+    The loop follows the prequential protocol: predict each training example,
+    score it with ACE, update the learner, and repeat.  The timer covers only
+    this prediction/update loop, excluding data loading, model construction,
+    and W&B logging.
+
+    Parameters
+    ----------
+    stream : TaskStream
+        Task stream already ordered and shuffled for the run.
+    method : str
+        Learner name understood by :func:`aklo.models.build_model`.
+    model_config : dict[str, Any]
+        Model configuration loaded from YAML.
+    seed : int
+        Seed passed to the learner.
+    model_overrides : dict[str, Any] | None, optional
+        Per-run model overrides.
+    evaluate_forgetting : bool, optional
+        Evaluate the test sets of all seen tasks after each task.
+    evaluate_final_test : bool, optional
+        Run the Table 2 final-test evaluation after the stream.
+    log_every : int, optional
+        Sample-log interval; ``0`` disables the sample log.
+    logger : WandbLogger | None, optional
+        Optional W&B logger.
+    log_selected_models : bool, optional
+        Include selected and full knowledge-base weights in the result.
+    task_callback : Callable[[TaskMetrics], None] | None, optional
+        Callback invoked after each task.
+
+    Returns
+    -------
+    tuple
+        ``(task_metrics, sample_log, summary, selected_models, all_models)``.
+        ``selected_models`` and ``all_models`` are ``None`` unless
+        ``log_selected_models`` is true.
     """
     model = build_model(
         method,
@@ -582,7 +642,27 @@ def execute_run(
     wandb_enabled: bool = True,
     smoke: bool = False,
 ) -> RunResult | None:
-    """Execute one run, save it locally, and log it to W&B."""
+    """Execute one run, save the JSON result, and optionally log to W&B.
+
+    Parameters
+    ----------
+    spec : RunSpec
+        Fully resolved run specification.
+    base : dict[str, Any]
+        Base configuration, used for runtime and W&B settings.
+    root : str | Path
+        Repository root that contains ``results/`` and ``data/``.
+    wandb_enabled : bool, optional
+        Disable W&B while keeping local JSON output.
+    smoke : bool, optional
+        Truncate the stream to the runtime smoke settings.
+
+    Returns
+    -------
+    RunResult | None
+        The completed result, or ``None`` when the method does not support
+        the dataset's task type.
+    """
     supported = spec.model_config.get("supported_task_types")
     task_type = spec.data_config.get("task_type")
     if supported is not None and task_type not in supported:

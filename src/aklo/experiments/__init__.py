@@ -369,7 +369,24 @@ _BUILDERS = {
 
 
 def build_specs(config: dict[str, Any]) -> list[RunSpec]:
-    """Build all run specifications for a loaded experiment config."""
+    """Expand a loaded experiment configuration into run specifications.
+
+    Parameters
+    ----------
+    config : dict[str, Any]
+        Configuration returned by :func:`aklo.config.load_config`; it must
+        contain an ``experiment`` section with an ``experiment`` name.
+
+    Returns
+    -------
+    list[RunSpec]
+        One specification per dataset, method, seed, and configured override.
+
+    Raises
+    ------
+    ValueError
+        If the experiment name is not registered.
+    """
     experiment = config["experiment"]
     name = experiment["experiment"]
     if name not in _BUILDERS:

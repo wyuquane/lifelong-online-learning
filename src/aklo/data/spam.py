@@ -47,9 +47,30 @@ def load_spam(
 
     The provided NPZ stores a 6000 x 152543 CSR matrix with 15 users and 400
     examples per user. The reproduction samples ``n_samples`` examples per
-    user, as in the paper, and uses raw bag-of-word counts.  ``n_test=-1``
-    uses every remaining row of a user as the test set (the E3 protocol);
-    a positive value draws a disjoint test block of that size.
+    user, as in the paper, and uses raw bag-of-word counts.
+
+    Parameters
+    ----------
+    path : str | Path
+        NPZ archive with ``data``, ``indices``, ``indptr``, ``shape``, ``y``,
+        and ``user_ids`` arrays.
+    n_samples : int, optional
+        Training messages sampled per user (paper default: 200).
+    n_users : int, optional
+        Number of users to include, taken in ascending user-id order.
+    seed : int, optional
+        Seed for sampling and optional train/test splits.
+    test_fraction : float, optional
+        Fraction held out when ``n_test == 0``.
+    n_test : int, optional
+        ``-1`` uses every remaining message of a user as test; a positive
+        value draws a disjoint test block; ``0`` keeps the earlier split
+        behavior.
+
+    Returns
+    -------
+    TaskStream
+        Sparse-feature classification stream with one task per user.
     """
     archive = np.load(path, allow_pickle=True)
     X_all = sparse.csr_matrix(

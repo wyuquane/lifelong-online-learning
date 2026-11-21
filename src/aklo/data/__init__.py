@@ -22,14 +22,24 @@ def load_dataset(
 
     Parameters
     ----------
-    name:
-        Dataset name (also used for synthetic generation).
-    config:
-        Dataset configuration dictionary.
-    seed:
+    name : str
+        Dataset name, also used by the synthetic generator.
+    config : dict[str, Any]
+        Dataset configuration containing at least ``kind``.
+    seed : int
         Seed controlling subsampling and train/test splits.
-    root:
-        Repository root used to resolve relative paths.
+    root : str | Path, optional
+        Repository root used to resolve relative data paths.
+
+    Returns
+    -------
+    TaskStream
+        Loaded tasks and their shared task type.
+
+    Raises
+    ------
+    ValueError
+        If ``config["kind"]`` is not a supported dataset kind.
     """
     kind = config["kind"]
     test_fraction = float(config.get("test_fraction", 0.0))

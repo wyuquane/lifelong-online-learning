@@ -100,7 +100,24 @@ class MetaHypothesis:
         raise ValueError(f"Unknown meta loss: {self.loss}")
 
     def update(self, x: Any, y: float) -> None:
-        """Accumulate member losses and refresh the exponential weights."""
+        """Update the exponential weights after one labelled observation.
+
+        The cumulative loss of every knowledge-base member is increased by its
+        current loss, and ``beta`` is recomputed as a numerically stable
+        softmax of ``-epsilon * E``.  An empty knowledge base is a no-op.
+
+        Parameters
+        ----------
+        x : Any
+            One feature vector, dense or single-row sparse.
+        y : float
+            Observed label or target.
+
+        Returns
+        -------
+        None
+            ``E`` and ``beta`` are updated in place.
+        """
         if not self.snapshots:
             return
         predictions = self._predictions(x)

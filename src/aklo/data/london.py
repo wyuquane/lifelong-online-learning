@@ -75,6 +75,20 @@ def load_london(
     denomination), use student gender as one binary feature, divide the two
     school-level percentages by 100, and append a bias feature.  This yields
     28 inputs.  The target is the raw examination score.
+
+    Parameters
+    ----------
+    path : str | Path
+        Fixed-width ``ILEA567.DAT`` file.
+    seed : int, optional
+        Seed for the optional per-school train/test split.
+    test_fraction : float, optional
+        Fraction of each school held out; ``0`` keeps every row for training.
+
+    Returns
+    -------
+    TaskStream
+        Regression stream with one task per school.
     """
     X, y, schools = _parse(path)
     tasks: list[TaskData] = []

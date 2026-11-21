@@ -27,11 +27,27 @@ def prepare_stream(
     shuffle_tasks: bool = True,
     shuffle_examples: bool = True,
 ) -> TaskStream:
-    """Return a deterministic, shuffled copy of ``stream``.
+    """Return a deterministic, shuffled copy of a task stream.
 
-    Task order is shuffled globally once per seed. Example order is shuffled
-    independently inside each task. Every method receives the same stream for
-    a given ``(dataset, seed)``.
+    Task order is shuffled once per seed; examples are shuffled independently
+    within each task (and within each test split when present).  Every method
+    receives the same stream for a given ``(dataset, seed)`` pair.
+
+    Parameters
+    ----------
+    stream : TaskStream
+        Input stream to copy.
+    seed : int
+        Seed for the task and example permutations.
+    shuffle_tasks : bool, optional
+        Shuffle the global task order.
+    shuffle_examples : bool, optional
+        Shuffle training and test examples inside each task.
+
+    Returns
+    -------
+    TaskStream
+        A new stream with copied ``TaskData`` objects and no shared row order.
     """
     tasks = list(stream.tasks)
     if shuffle_tasks:

@@ -27,7 +27,24 @@ class AKLOSnapshotPredictor:
     alpha: float
 
     def predict(self, x: Any) -> float:
-        """Mix the frozen meta and current predictions with ``alpha``."""
+        """Predict one observation with the frozen task-end AKLO mixture.
+
+        The meta-hypothesis and current predictor are fixed at the end of the
+        task, so this method only evaluates them and never updates parameters.
+
+        Parameters
+        ----------
+        x : Any
+            One feature vector, either a dense array or a single-row sparse
+            matrix.
+
+        Returns
+        -------
+        float
+            ``alpha * meta_prediction + (1 - alpha) * current_prediction``.
+            When the task had no knowledge base, the current prediction is
+            returned directly.
+        """
         current_prediction = self.current.predict(x)
         if self.meta is None:
             return current_prediction
@@ -116,7 +133,30 @@ class AKLO:
         task_id: str | None = None,
         category: str | None = None,
     ) -> None:
-        """Reset the current predictor and build the meta-hypothesis."""
+        """Prepare AKLO for the next task.
+
+        The current online predictor and ``alpha`` are reset, the cumulative
+        alpha normalization is computed for the task, and the meta-hypothesis
+        is rebuilt from all previously stored snapshots.  The first task has
+        no meta-hypothesis.
+
+        Parameters
+        ----------
+        task_index : int
+            Zero-based position of the task in the stream.
+        n_samples : int
+            Number of training observations in the task; used to compute
+            ``alpha_sum``.
+        task_id : str | None, optional
+            Identifier stored in the task snapshot.
+        category : str | None, optional
+            Optional task category (for example ``"D1"`` or ``"D2"``).
+
+        Returns
+        -------
+        None
+            The model is updated in place.
+        """
         self.task_index = int(task_index)
         self.current_task_id = task_id
         self.current_category = category
@@ -141,7 +181,25 @@ class AKLO:
             self.meta = None
 
     def predict(self, x: Any) -> float:
-        """Return the alpha-weighted mixture for one observation."""
+        """Predict one observation with the current AKLO mixture.
+
+        Parameters
+        ----------
+        x : Any
+            One feature vector, dense or single-row sparse.
+
+        Returns
+        -------
+        float
+            The alpha-weighted combination of the meta-hypothesis and the
+            current task predictor.  Before the second task the current
+            prediction is returned directly.
+
+        Raises
+        ------
+        RuntimeError
+            If ``start_task`` has not been called.
+        """
         if self.current is None:
             raise RuntimeError("start_task must be called before predict")
         current_prediction = self.current.predict(x)
@@ -151,7 +209,29 @@ class AKLO:
         return self.alpha * meta_prediction + (1.0 - self.alpha) * current_prediction
 
     def update(self, x: Any, y: float) -> None:
-        """Update the meta and current predictors, then decay ``alpha``."""
+        """Update both AKLO components after one labelled example.
+
+        The meta-hypothesis is updated first with the current knowledge base,
+        then the current linear predictor receives its online gradient step.
+        Finally, ``alpha`` is decayed by ``delta_alpha`` and clipped at zero.
+
+        Parameters
+        ----------
+        x : Any
+            One feature vector, dense or single-row sparse.
+        y : float
+            Observed label (classification) or target (regression).
+
+        Returns
+        -------
+        None
+            The model is updated in place.
+
+        Raises
+        ------
+        RuntimeError
+            If ``start_task`` has not been called.
+        """
         if self.current is None:
             raise RuntimeError("start_task must be called before update")
         if self.meta is not None:
@@ -160,7 +240,23 @@ class AKLO:
         self.alpha = max(0.0, self.alpha - self.delta_alpha)
 
     def end_task(self) -> LinearSnapshot:
-        """Freeze the task predictor and add it to the knowledge base."""
+        """Freeze the predictor at the end of the current task.
+
+        The current predictor is snapshotted together with the meta-hypothesis
+        and the ``alpha`` value reached after the last update.  The frozen
+        snapshot is used by the E3 per-task evaluation, while the live
+        knowledge base is extended for the next task.
+
+        Returns
+        -------
+        LinearSnapshot
+            The snapshot also appended to the live knowledge base.
+
+        Raises
+        ------
+        RuntimeError
+            If ``start_task`` has not been called.
+        """
         if self.current is None:
             raise RuntimeError("start_task must be called before end_task")
         snapshot = self.current.snapshot(
@@ -207,7 +303,24 @@ class AKLO:
         return list(self.snapshots)
 
     def final_predictor(self, task_index: int) -> AKLOSnapshotPredictor:
-        """Frozen predictor saved at the end of ``task_index``."""
+        """Return the frozen predictor saved at the end of a task.
+
+        Parameters
+        ----------
+        task_index : int
+            Zero-based task index in the stream.
+
+        Returns
+        -------
+        AKLOSnapshotPredictor
+            Read-only predictor containing the knowledge base, beta weights,
+            current predictor, and alpha from the end of that task.
+
+        Raises
+        ------
+        IndexError
+            If ``task_index`` is outside the range of saved task snapshots.
+        """
         if task_index < 0 or task_index >= len(self.task_snapshots):
             raise IndexError(
                 f"AKLO has {len(self.task_snapshots)} task snapshots, "

@@ -42,13 +42,26 @@ def load_landmine(
     test_fraction: float = 0.0,
     n_test: int = 0,
 ) -> TaskStream:
-    """Load the landmine CSV and build one task per geographical region.
+    """Load the Landmine CSV and build one task per geographical region.
 
-    The paper samples 150 training examples per task.  ``n_test=-1`` puts every
-    row that is not used for training into the test set, which is the E3
-    catastrophic-forgetting protocol.  A positive ``n_test`` draws a disjoint
-    test block of that size.  ``n_test=0`` keeps the earlier behaviour, where
-    ``test_fraction`` optionally splits the sampled rows.
+    Parameters
+    ----------
+    path : str | Path
+        CSV with ``task_id``, ``label``, and ``feature_*`` columns.
+    n_samples : int, optional
+        Training examples sampled per task (paper default: 150).
+    seed : int, optional
+        Seed for sampling and optional train/test splits.
+    test_fraction : float, optional
+        Fraction held out when ``n_test == 0``.
+    n_test : int, optional
+        ``-1`` uses every remaining row as test; a positive value draws a
+        disjoint test block; ``0`` keeps the earlier split behavior.
+
+    Returns
+    -------
+    TaskStream
+        Classification stream with one task per region.
     """
     frame = pd.read_csv(path)
     feature_cols = [c for c in frame.columns if c.startswith("feature_")]

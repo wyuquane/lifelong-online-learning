@@ -29,7 +29,29 @@ class ACETracker:
     n: int = 0
 
     def update(self, y_true: float, y_pred: float) -> None:
-        """Add one prediction to the running error average."""
+        """Add one prediction to the running average cumulative error.
+
+        Classification errors are 0/1 after thresholding at zero; regression
+        errors are absolute residuals.
+
+        Parameters
+        ----------
+        y_true : float
+            Ground-truth label or target.
+        y_pred : float
+            Raw model prediction.
+
+        Returns
+        -------
+        None
+            The running total and count are updated in place.
+
+        Raises
+        ------
+        ValueError
+            If ``task_type`` is neither ``"classification"`` nor
+            ``"regression"``.
+        """
         if self.task_type == "classification":
             error = 0.0 if classify(y_pred) == float(y_true) else 1.0
         elif self.task_type == "regression":
@@ -55,7 +77,22 @@ class ForgettingTracker:
     per_task: dict[str, float] = field(default_factory=dict)
 
     def add_task(self, task_id: str, y_true: np.ndarray, y_pred: np.ndarray) -> None:
-        """Evaluate one task's test set and add it to the pooled average."""
+        """Evaluate one task's test set and add it to the pooled error.
+
+        Parameters
+        ----------
+        task_id : str
+            Identifier used as the key in ``per_task``.
+        y_true : np.ndarray
+            Ground-truth labels or targets for the task.
+        y_pred : np.ndarray
+            Model predictions aligned with ``y_true``.
+
+        Returns
+        -------
+        None
+            ``per_task``, ``total``, and ``n`` are updated in place.
+        """
         tracker = ACETracker(self.task_type)
         for truth, prediction in zip(np.asarray(y_true).ravel(), np.asarray(y_pred).ravel()):
             tracker.update(float(truth), float(prediction))

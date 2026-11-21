@@ -169,11 +169,19 @@ qualitative.
 
 The real datasets are downloaded programmatically from the public Kaggle
 dataset [`wyuquane/aklo-real-world-dataset`](https://www.kaggle.com/datasets/wyuquane/aklo-real-world-dataset)
-(MIT licence, version 1, no authentication). `scripts/prepare_data.py
---download` uses `kagglehub`, copies the files into the layout expected by the
+(MIT licence, version 1, no authentication). With the environment installed,
+run this **before** the first real-data experiment (E1, E3, or E6):
+
+```powershell
+python scripts/prepare_data.py --download
+python scripts/prepare_data.py --check
+```
+
+`--download` uses `kagglehub`, copies the files into the layout expected by the
 loaders, and verifies their sizes and SHA-256 digests against the committed
 [`data/manifest.json`](../data/manifest.json). `--check` performs the same
-validation without downloading. The loaders remain isolated in
+validation without downloading. The synthetic-only experiments (E2, E4, E5,
+E7, E8) and the theory checks need no Kaggle files. The loaders remain isolated in
 `src/aklo/data/`, so replacing the data source does not touch the models or the
 runner. `data/README.md` documents the file layout and original provenance.
 

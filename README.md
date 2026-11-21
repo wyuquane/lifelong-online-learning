@@ -18,45 +18,207 @@ in [`docs/experiment_protocol.md`](docs/experiment_protocol.md).
 
 ## Quick start
 
-```bash
+> **First-run order:** install the environment → **download the real datasets** →
+> verify the checksums → smoke test → full matrix → build the report.
+>
+> The real-data experiments (E1, E3, E6) read files from `data/` and fail if
+> the download step is skipped. The synthetic-only experiments
+> (E2, E4, E5, E7, E8) and the theory checks need no Kaggle files.
+
+### 0. Requirements
+
+- Python **3.10+** (tested on Python 3.12.6)
+- About 10 MB of free disk for the real datasets
+  (Landmine 2.8 MB, Spam 1.9 MB, London 0.9 MB)
+- Internet access for the first download; **no Kaggle account or API key is
+  required**
+- W&B is optional. Every command works with `--no-wandb`.
+
+### 1. Clone and install
+
+Windows (PowerShell):
+
+```powershell
+git clone https://github.com/wyuquane/lifelong-online-learning.git
+cd lifelong-online-learning
+
 python -m venv .venv
-# Windows: .venv\Scripts\activate
+.\.venv\Scripts\Activate.ps1
+python -m pip install --upgrade pip
 pip install -r requirements.txt
-
-# Optional W&B credentials
-cp .env.example .env
-
-# Smoke test (2 tasks x 5 samples, no W&B)
-python scripts/run.py --experiment e1_main --smoke --no-wandb --limit 2
-
-# Unit tests
-python -m pytest -q
-
-# Full matrix with W&B tracking
-python scripts/run_matrix.py --experiments e1_main,e2_small_m,e3_catastrophic-forgetting,e4_sensitivity_cls,e5_sensitivity_reg,e6_akloms_tau,e7_akloms_models,e8_runtime
-
-# Build the Markdown report and figures from local JSON
-python scripts/make_report.py
 ```
 
-The real datasets are downloaded from the public Kaggle dataset
-[`wyuquane/aklo-real-world-dataset`](https://www.kaggle.com/datasets/wyuquane/aklo-real-world-dataset)
-(MIT licence, version 1, no Kaggle account required):
+Linux/macOS:
 
 ```bash
-# Download and copy the files into data/
+git clone https://github.com/wyuquane/lifelong-online-learning.git
+cd lifelong-online-learning
+
+python3 -m venv .venv
+source .venv/bin/activate
+python -m pip install --upgrade pip
+pip install -r requirements.txt
+```
+
+If PowerShell blocks the activation script:
+
+```powershell
+Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
+.\.venv\Scripts\Activate.ps1
+```
+
+### 2. Download and verify the real datasets (required first)
+
+The downloader fetches the public Kaggle dataset
+[`wyuquane/aklo-real-world-dataset`](https://www.kaggle.com/datasets/wyuquane/aklo-real-world-dataset)
+(version 1, MIT licence, no login), copies the files into `data/`, and verifies
+their sizes and SHA-256 digests against `data/manifest.json`.
+
+```powershell
+# Download + validate in one step
 python scripts/prepare_data.py --download
 
-# Validate sizes and SHA-256 checksums
+# Re-check at any time (default action)
 python scripts/prepare_data.py --check
 ```
 
-The destination layout and checksums are recorded in
-[`data/manifest.json`](data/manifest.json); see
-[`data/README.md`](data/README.md) for provenance and preprocessing. Synthetic
-`syn1`–`syn4` are generated deterministically and need no files.
+Expected output of `--check`:
+
+```text
+Repository root: ...\lifelong-online-learning
+[ok] landmine-detection.csv: 2760835 bytes, sha256 7396407a1a92...
+[ok] spam-detection.npz: 1910501 bytes, sha256 8b54bcf1ef29...
+[ok] ILEA567.DAT: 276517 bytes, sha256 57bbbfd28db3...
+[ok] ILEA567.ASC: 2868 bytes, sha256 8d9d6cf24b1d...
+[ok] ILEA567.WS: 650025 bytes, sha256 8397e63b0f2f...
+[ok] landmine: 14820 rows, 9 features, 29 tasks
+[ok] spam: shape=(6000, 152543), 15 users, 922884 non-zeros
+[ok] london: 15362 students, 139 schools
+
+Synthetic datasets syn1-syn4 are generated deterministically by src/aklo/data/synthetic.py.
+All real datasets are present and match data/manifest.json.
+```
+
+Expected layout:
+
+```text
+data/
+├── manifest.json                   # committed checksum manifest
+├── landmine-detection.csv          # 2,760,835 bytes
+├── spam-detection.npz              # 1,910,501 bytes
+└── london-school/
+    ├── ILEA567.DAT                 # 276,517 bytes, used by the loader
+    ├── ILEA567.ASC                 # 2,868 bytes, original documentation
+    └── ILEA567.WS                  # 650,025 bytes, original worksheet
+```
+
+If a file is missing, corrupted, or from a different archive version:
+
+```powershell
+python scripts/prepare_data.py --download --force
+```
+
+For a custom destination, use `--data-dir <path>` and update the paths in
+`configs/data/*.yaml` accordingly. See [`data/README.md`](data/README.md) for
+provenance, preprocessing, manual/offline download, and troubleshooting.
+
+### 3. Smoke test (after step 2)
+
+```powershell
+# Real-data wiring test: 2 tasks x 5 samples, no W&B
+python scripts/run.py --experiment e1_main --dataset landmine --method aklo --smoke --no-wandb --limit 2
+
+# Synthetic-only wiring test: works without the Kaggle download
+python scripts/run.py --experiment e2_small_m --smoke --no-wandb --limit 2
+```
+
+### 4. Run the unit tests
+
+```powershell
+python -m pytest -q
+```
+
+Expected: `97 passed`.
+
+### 5. Run the full reproduction
+
+Without W&B (fastest; writes local JSON only):
+
+```powershell
+python scripts/run_matrix.py --experiments e1_main,e2_small_m,e3_catastrophic-forgetting,e4_sensitivity_cls,e5_sensitivity_reg,e6_akloms_tau,e7_akloms_models,e8_runtime --no-wandb
+```
+
+With W&B:
+
+```powershell
+# Windows: create the local credentials file, then fill in WANDB_API_KEY
+Copy-Item .env.example .env
+notepad .env
+
+python scripts/run_matrix.py --experiments e1_main,e2_small_m,e3_catastrophic-forgetting,e4_sensitivity_cls,e5_sensitivity_reg,e6_akloms_tau,e7_akloms_models,e8_runtime
+```
+
+Linux/macOS equivalent:
+
+```bash
+cp .env.example .env
+${EDITOR:-nano} .env
+python scripts/run_matrix.py --experiments e1_main,e2_small_m,e3_catastrophic-forgetting,e4_sensitivity_cls,e5_sensitivity_reg,e6_akloms_tau,e7_akloms_models,e8_runtime
+```
+
+Or use the PowerShell wrapper, which runs the full matrix and then builds the
+report:
+
+```powershell
+# First run: download the datasets and then run everything
+.\scripts\reproduce_all.ps1 -DownloadData
+
+# Later runs (data already present)
+.\scripts\reproduce_all.ps1
+```
+
+The wrapper still needs step 2 to have completed (or `-DownloadData` on the
+first run). See [`docs/wandb.md`](docs/wandb.md) for tracking setup.
+
+### 6. Build the report
+
+```powershell
+python scripts/make_report.py
+```
+
+Open `reports/report.md` and the figures in `reports/`. The report generator
+reads the local JSON files and adds W&B group links when available.
+
+### 7. Run only part of the matrix
+
+| Goal | Command |
+| --- | --- |
+| One experiment | `python scripts/run.py --experiment e1_main` |
+| One dataset/method | `python scripts/run.py --experiment e1_main --dataset syn1 --method aklo` |
+| List the expanded runs | `python scripts/run.py --experiment e7_akloms_models --list` |
+| Disable W&B | add `--no-wandb` |
+| Smoke mode | add `--smoke --limit 2` |
+| Theory checks (synthetic only) | `powershell -ExecutionPolicy Bypass -File scripts/run_theory_checks.ps1` |
+
+### 8. Troubleshooting
+
+| Symptom | Cause / fix |
+| --- | --- |
+| `FileNotFoundError: data/landmine-detection.csv` | The real datasets were not downloaded. Run `python scripts/prepare_data.py --download`. |
+| `[missing] ...` from `--check` | A file is absent. Run `--download`; if it still fails, `--download --force`. |
+| `checksum mismatch` | The file is stale or from another archive version. Run `--download --force`. |
+| `kagglehub is not installed` | Install the environment first: `pip install -r requirements.txt`. |
+| Kaggle download failed | Check the network/proxy and retry. The dataset is public and needs no login. |
+| `ModuleNotFoundError: aklo` | Run the commands from the repository root. The scripts add `src/` to `sys.path`; no `pip install -e .` is required. |
+| PowerShell cannot activate the venv | `Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass`, then activate again. |
+| W&B login/offline problems | Add `--no-wandb`, or set `WANDB_MODE=offline`. Local JSON is still written. |
+| Path contains spaces or Vietnamese characters | Quote paths. The repository is tested on Windows with this checkout. |
 
 ## Experiment map
+
+> **Data prerequisite:** E1, E3 and E6 need the real datasets from step 2
+> above (`python scripts/prepare_data.py --download`). E2, E4, E5, E7, E8 and
+> the theory checks use synthetic streams only.
 
 | ID | Paper element | Script / config | W&B (seed-0 run) | One-line finding |
 | --- | --- | --- | --- | --- |
@@ -278,7 +440,7 @@ configs/
   data/*.yaml                # dataset paths and sizes
   models/*.yaml              # AKLO, AKLOMS, and baseline defaults
   experiments/*.yaml         # E1-E8 matrices
-data/                        # local real datasets (not committed) + manifest.json
+data/                        # local real datasets (not committed) + README + manifest.json
 docs/
   experiment_protocol.md     # exact protocol and hyperparameters
   paper_decisions.md         # ambiguities, deviations, unresolved gaps
@@ -331,7 +493,8 @@ Headline findings from 50-task diagnostic runs (not logged to W&B):
   `tau <= 1` and still 45/49 models at `tau=10`. The bound is 5.6–10.8× the
   empirical error and looser than Theorem 1 even at `tau=0`.
 
-Reproduce with:
+These checks use the synthetic `syn1`/`syn3` streams and do not need the
+Kaggle datasets. Reproduce with:
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File scripts/run_theory_checks.ps1
@@ -342,13 +505,17 @@ powershell -ExecutionPolicy Bypass -File scripts/run_theory_checks.ps1
 The repository follows the course reproduction guide:
 <https://hcmus-cs-ta.github.io/lab-book/intro-ml/project/statement/reproduction/>.
 
-Suggested reading order:
+Suggested order for a first reproduction:
 
-1. [`docs/experiment_protocol.md`](docs/experiment_protocol.md) — what each
+1. [Quick start](#quick-start) — install the environment and **download the
+   real datasets before running E1/E3/E6**.
+2. [`data/README.md`](data/README.md) — data layout, checksums, offline/manual
+   download, provenance, and troubleshooting.
+3. [`docs/experiment_protocol.md`](docs/experiment_protocol.md) — what each
    experiment does and how to run it.
-2. [`docs/paper_decisions.md`](docs/paper_decisions.md) — what we changed and
+4. [`docs/paper_decisions.md`](docs/paper_decisions.md) — what we changed and
    why.
-3. [`reports/report.md`](reports/report.md) — generated tables, figures, and
+5. [`reports/report.md`](reports/report.md) — generated tables, figures, and
    run links.
 
 ## Data, code, and reuse
@@ -381,13 +548,22 @@ The only third-party code used is the following open-source libraries:
 Data sources:
 
 * **Real datasets:** [`wyuquane/aklo-real-world-dataset`](https://www.kaggle.com/datasets/wyuquane/aklo-real-world-dataset)
-  on Kaggle (MIT licence, version 1). `scripts/prepare_data.py` downloads it
-  without credentials and verifies the files against
-  [`data/manifest.json`](data/manifest.json). The original Landmine, Spam, and
-  London School sources are described in [`data/README.md`](data/README.md).
+  on Kaggle (MIT licence, version 1). `scripts/prepare_data.py --download`
+  fetches it without credentials and verifies every file against
+  [`data/manifest.json`](data/manifest.json). Run this **before** E1, E3, E6,
+  E7, or E8; those loaders read the files from `data/` and do not download
+  them inside the runner.
+* **Why a separate Kaggle archive:** the paper does not appear to distribute
+  the exact task-indexed/preprocessed files as one public archive, and the
+  original sources (Landmine, ECML-PKDD 2006 Spam, London/ILEA) are
+  heterogeneous. The Kaggle copy freezes the exact files and checksums used
+  here so the reproduction runs end to end without manual preprocessing. The
+  original Landmine, Spam, and London School sources, preprocessing, and
+  licensing are described in [`data/README.md`](data/README.md).
 * **Synthetic datasets:** `syn1`–`syn4` are generated by
   [`src/aklo/data/synthetic.py`](src/aklo/data/synthetic.py); no external data
-  is used.
+  is used. E2, E4, E5, and the theory checks therefore need no Kaggle
+  download.
 * **Paper:** Shui et al., *Lifelong Online Learning from Accumulated
   Knowledge*, ACM TKDD 17(4), 2023 (DOI
   [10.1145/3563947](https://doi.org/10.1145/3563947)). The paper is cited as

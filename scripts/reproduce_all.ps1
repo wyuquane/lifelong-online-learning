@@ -1,7 +1,13 @@
 # Run the full AKLO reproduction matrix with W&B tracking.
 #
+# Before the first real-data run, download and validate the datasets:
+#   python scripts/prepare_data.py --download
+# or pass -DownloadData to this script:
+#   .\scripts\reproduce_all.ps1 -DownloadData
+#
 # Examples:
 #   .\scripts\reproduce_all.ps1
+#   .\scripts\reproduce_all.ps1 -DownloadData
 #   .\scripts\reproduce_all.ps1 -Experiments e1_main,e3_catastrophic-forgetting
 #   .\scripts\reproduce_all.ps1 -NoWandb -Smoke -LimitPerExperiment 2
 #
@@ -14,12 +20,23 @@ param(
     [switch]$NoWandb,
     [switch]$Smoke,
     [int]$LimitPerExperiment = 0,
-    [switch]$SkipReport
+    [switch]$SkipReport,
+    [switch]$DownloadData
 )
 
 $ErrorActionPreference = "Stop"
+$env:PYTHONIOENCODING = "utf-8"
 $root = Split-Path -Parent $PSScriptRoot
 Set-Location $root
+
+if ($DownloadData) {
+    Write-Host "Downloading and validating the real datasets..."
+    python scripts/prepare_data.py --download
+    if ($LASTEXITCODE -ne 0) {
+        Write-Error "Dataset download/validation failed. See the output above."
+        exit $LASTEXITCODE
+    }
+}
 
 $arguments = @(
     "scripts/run_matrix.py",

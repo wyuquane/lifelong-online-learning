@@ -10,11 +10,29 @@ Every experiment is tracked in the public W&B project
 The defaults live in `configs/base.yaml`. Credentials are read from `.env`
 (ignored by git) through `python-dotenv`.
 
+## 0. Before W&B: download the datasets
+
+W&B tracking is independent of data preparation, but the real-data experiments
+still need the files in `data/` first. After installing the environment in §1,
+run this **before** E1, E3, or E6:
+
+```powershell
+python scripts/prepare_data.py --download
+python scripts/prepare_data.py --check
+```
+
+E2, E4, E5, E7, E8 and the theory checks use synthetic data only, so they can
+run without the Kaggle download. See [`data/README.md`](../data/README.md) for
+the layout, checksums, and troubleshooting.
+
 ## 1. Setup
 
 ```bash
+# Linux/macOS
 cp .env.example .env
-# edit .env and set WANDB_API_KEY
+# Windows PowerShell: Copy-Item .env.example .env
+
+# Edit .env and set WANDB_API_KEY
 pip install -r requirements.txt
 wandb login   # optional if WANDB_API_KEY is set in .env
 ```
@@ -32,6 +50,15 @@ WANDB_MODE=online
 runner still writes local JSON when W&B is disabled.
 
 ## 2. Running with tracking
+
+The commands below assume that the environment is installed and, for E1/E3/E6,
+that §0 has been completed. For a first run, use this order:
+
+1. `python scripts/prepare_data.py --download`
+2. `python scripts/prepare_data.py --check`
+3. `python scripts/run.py --experiment e2_small_m --smoke --no-wandb --limit 2` (synthetic smoke test)
+4. `python scripts/run.py --experiment e1_main --dataset landmine --method aklo --smoke --no-wandb --limit 2` (real-data smoke test)
+5. the full matrix below
 
 ```bash
 # One experiment

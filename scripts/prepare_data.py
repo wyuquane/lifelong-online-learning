@@ -24,6 +24,13 @@ from typing import Any
 import numpy as np
 import pandas as pd
 
+# The repository may live under a path containing non-ASCII characters (for
+# example Vietnamese folder names).  Keep console output UTF-8 so printing the
+# destination paths does not fail on Windows code pages such as cp1258.
+if hasattr(sys.stdout, "reconfigure"):
+    sys.stdout.reconfigure(encoding="utf-8")
+    sys.stderr.reconfigure(encoding="utf-8")
+
 ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_DATA_DIR = ROOT / "data"
 MANIFEST_PATH = ROOT / "data" / "manifest.json"

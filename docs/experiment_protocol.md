@@ -4,6 +4,27 @@ This document records exactly how the Section 6 experiments are implemented.
 It is the reference for the numbers in `reports/report.md` and for the
 deviations listed in `docs/paper_decisions.md`.
 
+## 0. Before you run: download and verify the data
+
+The real-data experiments (E1, E3, E6) read files from `data/`; the runner
+does not download them. With the environment installed (see the README quick
+start), download and verify once before the first run:
+
+```powershell
+python scripts/prepare_data.py --download
+python scripts/prepare_data.py --check
+```
+
+`--check` is the default action. It should end with:
+
+```text
+All real datasets are present and match data/manifest.json.
+```
+
+The synthetic-only experiments (E2, E4, E5, E7, E8) and the theory checks do
+not need these files. See [`data/README.md`](../data/README.md) for the
+expected layout, checksums, offline/manual download, and troubleshooting.
+
 ## 1. What a run is
 
 One run is one tuple
@@ -18,7 +39,8 @@ experiments). Each run writes a JSON file to
 `results/<experiment>/<run_name>.json` and, unless `--no-wandb` is used, logs
 the same information to W&B.
 
-A run always follows this order:
+A run assumes that the dataset required by its config is already present in
+`data/` (see §0). A run always follows this order:
 
 1. Load the dataset (or generate it deterministically).
 2. Shuffle the task order once with the run seed.
@@ -33,6 +55,10 @@ All methods receive exactly the same task order and example order for a given
 (`src/aklo/data/stream.py`).
 
 ## 2. Datasets and task construction
+
+All real-data paths below are relative to `data/`. Run
+`python scripts/prepare_data.py --download` before the first E1/E3/E6 run; see
+§0 and [`data/README.md`](../data/README.md).
 
 ### Synthetic datasets (`syn1`-`syn4`)
 

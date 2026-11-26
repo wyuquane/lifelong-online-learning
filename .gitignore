@@ -234,5 +234,13 @@ data/london-school/
 /page*.png
 /formula_*.png
 
+# Extracted paper/course-slide scratch files (not redistributed)
+/Slide ML2.pdf
+/akloms_pages.txt
+/page*.txt
+/paper_page*.png
+/tmp_*.png
+/fig7a*.png
+
 # Streamlit
 .streamlit/secrets.toml

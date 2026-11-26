@@ -197,10 +197,10 @@ cover-size pattern is the same. In E6 (`syn1`, 200 tasks, `seed=0`):
 | 10 | 12.61 | 192 / 200 |
 | 100 | 23.13 | 91 / 200 (45.5%) |
 
-E7 shows the same trend for 50–400 tasks: the selected-model ratio is 98–99%
-for `tau <= 1`, 86.7–91.0% at `tau=25`, and never approaches the 0–20% region
-that the paper's Figure 7 highlights. The paper's `tau` axis is therefore not
-directly comparable to ours: the cover test uses raw prediction differences,
+E7 shows the same trend for 50–400 tasks: the selected-model ratio is
+98.0–99.8% for `tau <= 1` and 83.0–88.3% at `tau=25`, and never approaches the
+0–20% region that the paper's Figure 7 highlights. The paper's `tau` axis is
+therefore not directly comparable to ours: the cover test uses raw prediction differences,
 so the effective threshold depends on the weight norm. The qualitative
 trade-off (larger `tau` → smaller cover, higher ACE) is reproduced, but the
 absolute model-ratio range is not.

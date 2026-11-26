@@ -196,9 +196,9 @@ failures:
 2. **Regression ACEs are much lower than the paper's** for `syn3`, `syn4`, and
    London. The paper's `syn3` values are worse than predicting zero (e.g.
    Unif_Sum 27.69), which is difficult to reconcile with the stated absolute
-   loss and data scale. Our values (e.g. AKLO 1.06 on `syn3`) are internally
-   consistent with the generated targets. This remains an unresolved
-   inconsistency in the paper's reported numbers.
+   loss and data scale. Our values (e.g. AKLO 0.96 on `syn3`, ten-seed mean;
+   seed 0 is 1.06) are internally consistent with the generated targets. This
+   remains an unresolved inconsistency in the paper's reported numbers.
 3. **E3 uses method-specific predictors.** ITOL, AKLO, TranOL and OTB are
    evaluated with frozen per-task snapshots, TOL with its final online model,
    and Unif_Sum with the average of all task snapshots. This hybrid protocol
@@ -210,7 +210,8 @@ failures:
 
 ## 8. Repository and W&B conventions
 
-* Branch: `repro/aklo`; `main` is not pushed to.
+* Branch: `empirical-demonstration` (phase 2); the phase-1 reproduction is
+  preserved on `repro/aklo`; `main` is not used for development.
 * W&B project: `AKLO-lifelong-online-learning`, entity `AI-Athena-Lab`,
   online mode, no artifacts.
 * Every run logs its config, per-task metrics, sample-level running ACE, and
